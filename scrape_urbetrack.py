@@ -210,15 +210,36 @@ def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
     page.wait_for_selector(SEL_GRID, timeout=20000)
 
 
-def _wait_for_page_stable(page, next_page: int, max_polls: int = 40, poll_ms: int = 300) -> None:
+def _read_pager_info(page):
+    """Lee el total de resultados y la página más alta referenciada en
+    el pager (título de todos los <span>/<a> dentro de tr.C1PagerRow).
+    Se llama una sola vez, en la página 1 -- todavía no tocamos nada."""
+    return page.evaluate(
+        """() => {
+            const pager = document.querySelector('tr.C1PagerRow');
+            if (!pager) return {total: null, maxPage: 1};
+            const totalSpan = pager.querySelector('td > span');
+            const match = totalSpan ? totalSpan.textContent.match(/(\\d+)/) : null;
+            const total = match ? parseInt(match[1], 10) : null;
+            const nums = Array.from(pager.querySelectorAll('a.C1Link'))
+                .map(a => parseInt(a.getAttribute('title'), 10))
+                .filter(n => !isNaN(n));
+            nums.push(1);
+            return {total, maxPage: Math.max(...nums)};
+        }"""
+    )
+
+
+def _wait_for_page_stable(page, next_page: int, expected_count, max_polls: int = 50, poll_ms: int = 300) -> None:
     """El postback del grid actualiza el pager y las filas en pasos
     separados -- esperar solo a que el pager muestre la página nueva no
     alcanza, a veces se lee una mezcla a medio re-renderizar (filas de
     la página anterior conviviendo con las de la nueva). Sondeamos hasta
-    que el pager marque la página correcta Y el contenido de las filas
-    (cantidad + texto de la primera y última) deje de cambiar en tres
-    lecturas seguidas. Un fingerprint basado en innerHTML.length no
-    alcanzaba -- dos renders distintos pueden coincidir en longitud."""
+    que el pager marque la página correcta, el contenido deje de cambiar
+    en tres lecturas seguidas, Y la cantidad de filas coincida con lo
+    que el pager dice que debería tener esta página -- verificar contra
+    ese número (en vez de solo "dejó de cambiar") evita quedarnos con un
+    render a medio terminar que resultó estable por casualidad."""
     prev_fp = None
     stable_reads = 0
     for _ in range(max_polls):
@@ -233,11 +254,12 @@ def _wait_for_page_stable(page, next_page: int, max_polls: int = 40, poll_ms: in
                 const dataRows = grid ? Array.from(grid.querySelectorAll('tr.C1Row')) : [];
                 const first = dataRows[0] ? dataRows[0].textContent.trim().slice(0, 80) : '';
                 const last = dataRows.length ? dataRows[dataRows.length - 1].textContent.trim().slice(0, 80) : '';
-                return {pagerOk, fp: dataRows.length + '|' + first + '|' + last};
+                return {pagerOk, count: dataRows.length, fp: dataRows.length + '|' + first + '|' + last};
             }""",
             {"pageNum": next_page, "gridSel": SEL_GRID},
         )
-        if state["pagerOk"] and state["fp"] == prev_fp and state["fp"] != "0||":
+        count_ok = expected_count is None or state["count"] == expected_count
+        if state["pagerOk"] and count_ok and state["fp"] == prev_fp and state["fp"] != "0||":
             stable_reads += 1
             if stable_reads >= 3:
                 return
@@ -247,13 +269,26 @@ def _wait_for_page_stable(page, next_page: int, max_polls: int = 40, poll_ms: in
 
 
 def collect_all_pages(page) -> list[dict]:
-    """El grid pagina de a 50 filas (C1PagerRow, con links "2", "3", ...
-    que disparan __doPostBack). Si no se recorren todas las páginas, un
-    rango con más de 50 resultados se trunca en silencio -- pasó con el
-    backfill de septiembre (108 resultados reales, solo se leían 50)."""
+    """El grid pagina de a N filas por página (C1PagerRow, con links
+    "2", "3", ... que disparan __doPostBack). Si no se recorren todas
+    las páginas, un rango con más resultados que una página se trunca
+    en silencio -- pasó con el backfill de septiembre (108 resultados
+    reales, solo se leían 50)."""
     all_rows = list(parse_grid(page))
-    visited = {1}
+    page_size = len(all_rows)
 
+    pager_info = _read_pager_info(page)
+    total = pager_info["total"]
+    total_pages = pager_info["maxPage"]
+
+    def expected_count(page_num: int):
+        if total is None or not page_size:
+            return None
+        if page_num < total_pages:
+            return page_size
+        return total - page_size * (total_pages - 1)
+
+    visited = {1}
     while True:
         link_titles = page.eval_on_selector_all(
             "tr.C1PagerRow a.C1Link", "els => els.map(e => e.getAttribute('title'))"
@@ -267,10 +302,17 @@ def collect_all_pages(page) -> list[dict]:
         with page.expect_response(lambda r: REPORT_PATH in r.url, timeout=30000):
             link.click()
 
-        _wait_for_page_stable(page, next_page)
+        _wait_for_page_stable(page, next_page, expected_count(next_page))
 
         visited.add(next_page)
         all_rows.extend(parse_grid(page))
+
+    if total is not None and len(all_rows) != total:
+        print(
+            f"ADVERTENCIA: el pager reporta {total} resultados pero se "
+            f"leyeron {len(all_rows)} filas (antes de deduplicar).",
+            file=sys.stderr,
+        )
 
     # Filas 100% idénticas en todos sus campos son casi con certeza un
     # artefacto de la transición entre páginas (dos servicios reales
