@@ -142,15 +142,29 @@ def set_route_filter(page, target_routes: set) -> None:
     checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
     count = checkboxes.count()
 
-    found_routes = set()
+    # Capturamos (id, label) de TODOS los checkboxes antes de tocar nada.
+    # El click en uno de ellos puede reordenar/re-renderizar la lista (el
+    # onclick de la tabla actualiza el resumen y potencialmente el DOM),
+    # y como `checkboxes` es un locator que se re-evalúa en vivo, seguir
+    # iterando por índice (`nth(i)`) después de empezar a clickear termina
+    # apuntando a elementos distintos de los que se leyeron originalmente
+    # -- eso causaba resultados inconsistentes entre corridas.
+    items = []
     for i in range(count):
         cb = checkboxes.nth(i)
         cb_id = cb.get_attribute("id")
         label_text = page.locator(f'label[for="{cb_id}"]').inner_text().strip()
+        items.append((cb_id, label_text))
 
+    found_routes = set()
+    for cb_id, label_text in items:
         should_check = label_text in target_routes
         if should_check:
             found_routes.add(label_text)
+
+        # Volvemos a buscar el checkbox por su id (selector estable) en
+        # vez de reusar el índice, por la misma razón de arriba.
+        cb = page.locator(f'#{cb_id}')
         if should_check != cb.is_checked():
             # El <input> nativo tiene tamaño/posición que Playwright no
             # puede usar para calcular un punto de click (ni con
