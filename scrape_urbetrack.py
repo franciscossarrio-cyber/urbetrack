@@ -210,6 +210,37 @@ def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
     page.wait_for_selector(SEL_GRID, timeout=20000)
 
 
+def _wait_for_page_stable(page, next_page: int, max_polls: int = 30, poll_ms: int = 250) -> None:
+    """El postback del grid actualiza el pager y las filas en pasos
+    separados -- esperar solo a que el pager muestre la página nueva no
+    alcanza, a veces se lee una mezcla a medio re-renderizar (filas de
+    la página anterior conviviendo con las de la nueva). Sondeamos hasta
+    que el pager marque la página correcta Y el contenido del grid deje
+    de cambiar entre dos lecturas seguidas."""
+    prev_len = None
+    stable_reads = 0
+    for _ in range(max_polls):
+        page.wait_for_timeout(poll_ms)
+        state = page.evaluate(
+            """({pageNum, gridSel}) => {
+                const row = document.querySelector('tr.C1PagerRow');
+                const pagerOk = row
+                    ? Array.from(row.querySelectorAll('td > span')).some(s => s.textContent.trim() === String(pageNum))
+                    : false;
+                const grid = document.querySelector(gridSel);
+                return {pagerOk, gridLen: grid ? grid.innerHTML.length : -1};
+            }""",
+            {"pageNum": next_page, "gridSel": SEL_GRID},
+        )
+        if state["pagerOk"] and state["gridLen"] == prev_len:
+            stable_reads += 1
+            if stable_reads >= 2:
+                return
+        else:
+            stable_reads = 0
+        prev_len = state["gridLen"]
+
+
 def collect_all_pages(page) -> list[dict]:
     """El grid pagina de a 50 filas (C1PagerRow, con links "2", "3", ...
     que disparan __doPostBack). Si no se recorren todas las páginas, un
@@ -231,29 +262,17 @@ def collect_all_pages(page) -> list[dict]:
         with page.expect_response(lambda r: REPORT_PATH in r.url, timeout=30000):
             link.click()
 
-        # wait_for_timeout fijo no alcanza: a veces la respuesta ya llegó
-        # pero el postback todavía no re-renderizó el grid, y leíamos la
-        # página anterior de nuevo (filas duplicadas) mientras la página
-        # real quedaba sin leer -- el total daba bien de casualidad pero
-        # el contenido por día salía mezclado entre corridas. Esperamos a
-        # que el indicador de página actual (el <span>, no el <a>, del
-        # pager) muestre el número al que acabamos de saltar.
-        page.wait_for_function(
-            """(pageNum) => {
-                const row = document.querySelector('tr.C1PagerRow');
-                if (!row) return false;
-                return Array.from(row.querySelectorAll('td > span'))
-                    .some(s => s.textContent.trim() === String(pageNum));
-            }""",
-            arg=next_page,
-            timeout=20000,
-        )
-        page.wait_for_selector(SEL_GRID, timeout=20000)
+        _wait_for_page_stable(page, next_page)
 
         visited.add(next_page)
         all_rows.extend(parse_grid(page))
 
-    return all_rows
+    # Filas 100% idénticas en todos sus campos son casi con certeza un
+    # artefacto de la transición entre páginas (dos servicios reales
+    # nunca coinciden en TODOS los horarios y valores a la vez) -- se
+    # descartan como red de seguridad adicional a _wait_for_page_stable.
+    deduped = list({tuple(sorted(row.items())): row for row in all_rows}.values())
+    return deduped
 
 
 def parse_grid(page) -> list[dict]:
