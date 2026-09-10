@@ -18,14 +18,12 @@ Salida:
 """
 
 import csv
-import json
 import os
 import sys
 from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 BASE_URL = "https://red.urbetrack.com"
 LOGIN_PATH = "/default.aspx"
@@ -35,6 +33,9 @@ REPORT_PATH = "/HigieneUrbana/Servicios/ReporteCumplimientoTurnos.aspx"
 SEL_USER = "#txtUsuario"
 SEL_PASS = "#txtPassword"
 SEL_LOGIN_BTN = "#btLogin"
+
+SEL_DISTRITO = "#ctl00_ctl00_ContentPlaceHolder1_TitleFilterPanel_FilterPanel_ContentFiltros_cbDistrito"
+TARGET_DISTRITO = "MUNICIPALIDAD DE MORENO"
 
 SEL_DESDE = "#ctl00_ctl00_ContentPlaceHolder1_TitleFilterPanel_FilterPanel_ContentFiltros_dtDesde_dtDesde_textBox"
 SEL_HASTA = "#ctl00_ctl00_ContentPlaceHolder1_TitleFilterPanel_FilterPanel_ContentFiltros_dtHasta_dtHasta_textBox"
@@ -93,62 +94,22 @@ def login(page, username: str, password: str) -> None:
         )
 
 
+def set_distrito_filter(page, distrito_label: str) -> None:
+    """El dropdown de 'Ruta' está en cascada respecto a 'Distrito': si el
+    distrito seleccionado no es el correcto, el panel de rutas queda
+    vacío (0 opciones) sin ningún error visible. Cambiar el <select>
+    dispara un postback de ASP.NET que repuebla la lista de rutas."""
+    with page.expect_response(lambda r: REPORT_PATH in r.url, timeout=20000):
+        page.select_option(SEL_DISTRITO, label=distrito_label)
+    page.wait_for_load_state("networkidle", timeout=20000)
+
+
 def set_route_filter(page, target_routes: set) -> None:
     """Tilda exactamente las rutas de target_routes en el dropdown de
     'Ruta', destildando cualquier otra que haya quedado de una sesión
     anterior. No depende de qué esté guardado server-side."""
     page.click(SEL_ROUTE_DROPDOWN_LABEL)
-    try:
-        page.wait_for_selector(SEL_ROUTE_CHECKBOXES, timeout=5000)
-    except PlaywrightTimeoutError:
-        pass  # seguimos igual -- el dump de debug de abajo va a mostrar por qué
-
-    # Dump de diagnóstico SIEMPRE (no solo si falla) -- así podemos ver
-    # en el artifact del run cómo quedó el panel realmente renderizado
-    # cuando el selector de checkboxes no matchea nada.
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    page.screenshot(path=os.path.join(OUTPUT_DIR, "debug_route_dropdown.png"))
-    with open(os.path.join(OUTPUT_DIR, "debug_route_dropdown.html"), "w", encoding="utf-8") as f:
-        f.write(page.content())
-
-    # Además, imprimimos el diagnóstico por stdout -- los artifacts no
-    # siempre son accesibles para inspeccionar, pero el log del job sí.
-    diag = page.evaluate(
-        """() => {
-            const q = (sel) => Array.from(document.querySelectorAll(sel));
-            const rutaEls = q('[id*="ddlCheckRutaHu"]');
-            return {
-                checkboxes_con_selector_list: q('input[type="checkbox"][id*="ddlCheckRutaHu_list"]').length,
-                checkboxes_cualquiera: q('input[type="checkbox"][id*="ddlCheckRutaHu"]').length,
-                elementos_con_ese_id: rutaEls.slice(0, 30).map(el => ({
-                    id: el.id, tag: el.tagName, cls: el.className,
-                })),
-            };
-        }"""
-    )
-    print("DIAG dropdown de rutas:", json.dumps(diag, ensure_ascii=False), file=sys.stderr)
-    for el in diag["elementos_con_ese_id"][:10]:
-        try:
-            outer = page.locator(f'#{el["id"]}').first.evaluate("e => e.outerHTML")
-        except Exception as exc:  # noqa: BLE001 -- esto es solo diagnóstico
-            outer = f"<no se pudo leer: {exc}>"
-        print(f"DIAG outerHTML de #{el['id']}:\n{outer[:2000]}", file=sys.stderr)
-
-    # El panel de Ruta puede depender de un filtro en cascada (Distrito).
-    # Buscamos cualquier control relacionado con "Distrito" para ver si
-    # está sin seleccionar -- lo cual explicaría que Ruta quede vacío.
-    distrito_diag = page.evaluate(
-        """() => {
-            const q = (sel) => Array.from(document.querySelectorAll(sel));
-            const els = q('[id*="Distrito" i]');
-            return els.slice(0, 15).map(el => ({
-                id: el.id, tag: el.tagName,
-                value: el.value !== undefined ? el.value : null,
-                text: (el.innerText || el.textContent || '').trim().slice(0, 200),
-            }));
-        }"""
-    )
-    print("DIAG elementos de Distrito:", json.dumps(distrito_diag, ensure_ascii=False), file=sys.stderr)
+    page.wait_for_selector(SEL_ROUTE_CHECKBOXES, timeout=10000)
 
     checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
     count = checkboxes.count()
@@ -182,6 +143,7 @@ def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
     page.goto(BASE_URL + REPORT_PATH, wait_until="networkidle")
     page.wait_for_selector(SEL_DESDE, timeout=20000)
 
+    set_distrito_filter(page, TARGET_DISTRITO)
     set_route_filter(page, TARGET_ROUTES)
 
     # fill() limpia el campo y tipea el valor; dispara los eventos que

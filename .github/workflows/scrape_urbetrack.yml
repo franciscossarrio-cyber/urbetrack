@@ -44,16 +44,6 @@ jobs:
             data/error_page.html
           if-no-files-found: ignore
 
-      - name: Subir debug del dropdown de rutas (siempre)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: debug-route-dropdown
-          path: |
-            data/debug_route_dropdown.png
-            data/debug_route_dropdown.html
-          if-no-files-found: ignore
-
       - name: Commitear el CSV resultante
         if: success()
         run: |
