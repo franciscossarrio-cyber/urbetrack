@@ -40,6 +40,20 @@ SEL_SEARCH_BTN = "#ctl00_ctl00_ContentPlaceHolder1_TitleFilterPanel_FilterPanel_
 SEL_GRID = "#ctl00_ctl00_ContentPlaceHolder1_grid"
 SEL_USER_LABEL = "#ctl00_ctl00_lblUserName"  # aparece solo si el login fue exitoso
 
+# Dropdown de checkboxes de "Ruta" -- selectores por atributo parcial
+# porque el ID completo es larguísimo y repetitivo (ASP.NET WebForms).
+SEL_ROUTE_DROPDOWN_LABEL = 'span[id*="ddlCheckRutaHu"][id$="_label"]'
+SEL_ROUTE_CHECKBOXES = 'input[type="checkbox"][id*="ddlCheckRutaHu_list"]'
+
+# Las 16 rutas finales a usar en el filtro, siempre exactas -- no
+# dependemos de lo que haya quedado tildado en la sesión.
+TARGET_ROUTES = {
+    "1RECDOM1032F6", "1RECDOM1033F3", "1RECDOM1034F3", "1RECDOM1035F3",
+    "1RECDOM1036F6", "1RECDOM1037F6", "1RECDOM1038F6", "1RECDOM1039F3",
+    "1RECDON2031F3", "1RECDON2032F6", "1RECDON2033F3", "1RECDON2034F3",
+    "1RECDON2035F3", "1RECDON2037F6", "1RECDON2039F6", "1RECDON2040F6",
+}
+
 OUTPUT_DIR = "data"
 
 
@@ -56,13 +70,16 @@ def login(page, username: str, password: str) -> None:
 
     # El click dispara ValidateRecaptcha() -> grecaptcha.execute() (async)
     # -> __doPostBack('btLogin','') recién cuando llega el token. Con un
-    # browser real esto se resuelve solo; solo hay que esperar bien.
+    # browser real esto se resuelve solo; solo hay que esperar bien. En
+    # runners de CI (más lentos que una compu local) esto puede tardar
+    # bastante más de lo esperable.
     page.click(SEL_LOGIN_BTN)
+    page.wait_for_load_state("networkidle", timeout=45000)
 
     # Esperar a que aparezca el layout post-login (label de usuario en
     # la barra superior) en vez de asumir una navegación con URL fija.
     try:
-        page.wait_for_selector(SEL_USER_LABEL, timeout=30000)
+        page.wait_for_selector(SEL_USER_LABEL, timeout=45000)
     except Exception:
         # Si no apareció, probablemente el login falló (credenciales,
         # captcha con score bajo, etc.) - dejamos que el caller falle
@@ -74,14 +91,51 @@ def login(page, username: str, password: str) -> None:
         )
 
 
+def set_route_filter(page, target_routes: set) -> None:
+    """Tilda exactamente las rutas de target_routes en el dropdown de
+    'Ruta', destildando cualquier otra que haya quedado de una sesión
+    anterior. No depende de qué esté guardado server-side."""
+    page.click(SEL_ROUTE_DROPDOWN_LABEL)
+    page.wait_for_timeout(300)  # el panel tarda un instante en desplegar
+
+    checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
+    count = checkboxes.count()
+
+    matched = 0
+    for i in range(count):
+        cb = checkboxes.nth(i)
+        cb_id = cb.get_attribute("id")
+        label_text = page.locator(f'label[for="{cb_id}"]').inner_text().strip()
+
+        should_check = label_text in target_routes
+        if should_check:
+            matched += 1
+        if should_check != cb.is_checked():
+            cb.click()  # dispara el onclick de la tabla que actualiza el resumen
+
+    if matched != len(target_routes):
+        print(
+            f"ADVERTENCIA: se esperaban {len(target_routes)} rutas y solo "
+            f"se encontraron {matched} en el listado. Revisar si algún "
+            f"código de ruta cambió o no existe más.",
+            file=sys.stderr,
+        )
+
+    # Cerrar el dropdown para que no tape el botón "Buscar"
+    page.keyboard.press("Escape")
+    page.wait_for_timeout(200)
+
+
 def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
     page.goto(BASE_URL + REPORT_PATH, wait_until="networkidle")
     page.wait_for_selector(SEL_DESDE, timeout=20000)
 
+    set_route_filter(page, TARGET_ROUTES)
+
     # fill() limpia el campo y tipea el valor; dispara los eventos que
     # ASP.NET necesita para tomar el valor en el próximo postback. No
-    # tocamos el filtro de tipo de servicio ni el de rutas -> Urbetrack
-    # conserva lo que ya esté tildado en la sesión del usuario.
+    # tocamos el filtro de tipo de servicio -> Urbetrack conserva lo
+    # que ya esté tildado ahí en la sesión del usuario.
     page.fill(SEL_DESDE, desde)
     page.fill(SEL_HASTA, hasta)
 
