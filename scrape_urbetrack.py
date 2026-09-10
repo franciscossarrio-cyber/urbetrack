@@ -128,7 +128,12 @@ def set_route_filter(page, target_routes: set) -> None:
         if should_check:
             matched += 1
         if should_check != cb.is_checked():
-            cb.click(force=True)  # dispara el onclick de la tabla que actualiza el resumen
+            # El <input> nativo tiene tamaño/posición que Playwright no
+            # puede usar para calcular un punto de click (ni con
+            # force=True -- eso solo saltea el chequeo de visibilidad,
+            # no la necesidad de un bounding box real). Disparamos el
+            # click nativo por JS, que sí dispara el onclick igual.
+            cb.evaluate("el => el.click()")
 
     if matched != len(target_routes):
         print(
