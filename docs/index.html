@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cumplimiento de Cuadras</title>
+<meta name="description" content="Dashboard de cumplimiento de cuadras por recorrido y día — Municipalidad de Moreno">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --page: #f2f4f3;
+    --surface: #ffffff;
+    --surface-2: #eef1f0;
+    --surface-3: #e4e8e6;
+    --border: rgba(10,20,16,0.11);
+    --border-strong: rgba(10,20,16,0.18);
+    --text-primary: #10201a;
+    --text-secondary: #4c5a54;
+    --text-muted: #7c8a83;
+    --accent: #1c6e5c;
+    --accent-strong: #124a3e;
+    --accent-soft: #d9ece7;
+    --accent-ink-on: #ffffff;
+    --good: #0ca30c;
+    --warning-bg: #fab219;
+    --warning-ink: #6b4700;
+    --critical: #d03b3b;
+    --heat-min: #e3efe9;
+    --heat-mid: #6fae8f;
+    --heat-max: #114a3a;
+    --heat-nodata: #eceeec;
+    --shadow-1: 0 1px 2px rgba(10,20,16,0.06), 0 1px 1px rgba(10,20,16,0.04);
+    --shadow-2: 0 8px 24px rgba(10,20,16,0.10), 0 2px 6px rgba(10,20,16,0.06);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --page: #0e1512;
+      --surface: #161e1a;
+      --surface-2: #1c2622;
+      --surface-3: #26322c;
+      --border: rgba(255,255,255,0.10);
+      --border-strong: rgba(255,255,255,0.18);
+      --text-primary: #f3f6f4;
+      --text-secondary: #b7c2bc;
+      --text-muted: #83918a;
+      --accent: #4fbf9c;
+      --accent-strong: #7fd6b8;
+      --accent-soft: #1e3a30;
+      --accent-ink-on: #06231b;
+      --good: #34c759;
+      --warning-bg: #fab219;
+      --warning-ink: #3a2900;
+      --critical: #ef6a63;
+      --heat-min: #1c2a24;
+      --heat-mid: #2f6e58;
+      --heat-max: #63d9ac;
+      --heat-nodata: #202a25;
+      --shadow-1: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-2: 0 8px 24px rgba(0,0,0,0.4);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"]{
+    --page: #0e1512;
+    --surface: #161e1a;
+    --surface-2: #1c2622;
+    --surface-3: #26322c;
+    --border: rgba(255,255,255,0.10);
+    --border-strong: rgba(255,255,255,0.18);
+    --text-primary: #f3f6f4;
+    --text-secondary: #b7c2bc;
+    --text-muted: #83918a;
+    --accent: #4fbf9c;
+    --accent-strong: #7fd6b8;
+    --accent-soft: #1e3a30;
+    --accent-ink-on: #06231b;
+    --good: #34c759;
+    --warning-bg: #fab219;
+    --warning-ink: #3a2900;
+    --critical: #ef6a63;
+    --heat-min: #1c2a24;
+    --heat-mid: #2f6e58;
+    --heat-max: #63d9ac;
+    --heat-nodata: #202a25;
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.3);
+    --shadow-2: 0 8px 24px rgba(0,0,0,0.4);
+    color-scheme: dark;
+  }
+
+  *{ box-sizing: border-box; }
+  body{
+    margin:0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: clamp(16px, 3vw, 36px);
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap{ max-width: 1180px; margin: 0 auto; display:flex; flex-direction:column; gap:22px; }
+
+  /* ---------- header ---------- */
+  .masthead{
+    display:flex; flex-wrap:wrap; gap:16px 28px; align-items:flex-end; justify-content:space-between;
+    padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
+  .masthead h1{
+    font-size: clamp(22px, 3vw, 30px);
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px 0;
+    text-wrap: balance;
+  }
+  .eyebrow{
+    font-size:11px; font-weight:700; letter-spacing:0.09em; text-transform:uppercase;
+    color: var(--accent); margin:0 0 6px 0;
+  }
+  .masthead p{ margin:0; color: var(--text-secondary); font-size:13.5px; max-width:56ch; }
+  .masthead-meta{ text-align:right; font-size:12px; color: var(--text-muted); line-height:1.6; }
+  .masthead-meta b{ color: var(--text-secondary); font-weight:600; }
+
+  /* ---------- filter bar ---------- */
+  .filterbar{
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:14px 18px;
+    box-shadow: var(--shadow-1);
+    display:flex; flex-wrap:wrap; gap:14px 24px; align-items:flex-end;
+  }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{ font-size:11px; font-weight:700; letter-spacing:0.05em; text-transform:uppercase; color:var(--text-muted); }
+  .field input[type=date]{
+    font: inherit; font-size:13.5px; color: var(--text-primary);
+    background: var(--surface-2); border:1px solid var(--border); border-radius:8px;
+    padding:7px 10px; font-variant-numeric: tabular-nums; min-width:150px;
+  }
+  .field input[type=date]:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+
+  .segmented{ display:inline-flex; background:var(--surface-2); border:1px solid var(--border); border-radius:9px; padding:3px; gap:2px; }
+  .segmented button{
+    font: inherit; font-size:13px; font-weight:600; color:var(--text-secondary);
+    background:transparent; border:none; border-radius:6px; padding:6px 13px; cursor:pointer;
+  }
+  .segmented button.active{ background:var(--accent); color:var(--accent-ink-on); }
+  .segmented button:not(.active):hover{ background:var(--surface-3); }
+
+  .presets{ display:flex; gap:6px; flex-wrap:wrap; }
+  .presets button{
+    font: inherit; font-size:12.5px; font-weight:600; color:var(--text-secondary);
+    background:var(--surface-2); border:1px solid var(--border); border-radius:999px;
+    padding:6px 12px; cursor:pointer;
+  }
+  .presets button:hover{ border-color:var(--border-strong); color:var(--text-primary); }
+  .presets button.active{ background:var(--accent-soft); color:var(--accent-strong); border-color:transparent; }
+
+  .filter-spacer{ flex:1 1 auto; }
+  .result-count{ font-size:12.5px; color:var(--text-muted); white-space:nowrap; }
+  .result-count b{ color:var(--text-secondary); font-variant-numeric: tabular-nums; }
+
+  /* ---------- kpi row ---------- */
+  .kpis{ display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:12px; }
+  .kpi{
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:16px 18px; box-shadow: var(--shadow-1); display:flex; flex-direction:column; gap:6px;
+    min-width:0;
+  }
+  .kpi .label{ font-size:11.5px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-muted); }
+  .kpi .value{ font-family:"JetBrains Mono", ui-monospace, monospace; font-size:26px; font-weight:700; letter-spacing:-0.01em; font-variant-numeric: tabular-nums; }
+  .kpi .sub{ font-size:12px; color:var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .kpi.hero{ background: linear-gradient(155deg, var(--accent-strong), var(--accent)); color:var(--accent-ink-on); border-color:transparent; }
+  .kpi.hero .label{ color: color-mix(in srgb, var(--accent-ink-on) 75%, transparent); }
+  .kpi.hero .sub{ color: color-mix(in srgb, var(--accent-ink-on) 82%, transparent); }
+  .kpi .dot{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px; }
+
+  /* ---------- panel shell ---------- */
+  .panel{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px;
+    padding:20px 22px; box-shadow: var(--shadow-1);
+  }
+  .panel-head{ display:flex; flex-wrap:wrap; align-items:baseline; justify-content:space-between; gap:8px 20px; margin-bottom:14px; }
+  .panel-head h2{ font-size:15.5px; font-weight:700; margin:0; }
+  .panel-head .desc{ font-size:12.5px; color:var(--text-muted); }
+  .two-col{ display:grid; grid-template-columns: 1.2fr 1fr; gap:18px; align-items:stretch; }
+  @media (max-width: 860px){ .two-col{ grid-template-columns: 1fr; } }
+
+  /* ---------- heatmap ---------- */
+  .heat-scroll{ overflow-x:auto; padding-bottom:4px; }
+  table.heat{ border-collapse:separate; border-spacing:3px; font-size:12px; }
+  table.heat th, table.heat td{ padding:0; text-align:center; }
+  .heat-corner{ min-width:150px; text-align:left !important; vertical-align:bottom; padding-bottom:6px !important; }
+  .heat-corner .grp{ font-size:10.5px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:var(--text-muted); }
+  th.datecol{
+    font-weight:600; color:var(--text-muted); font-variant-numeric: tabular-nums;
+    writing-mode: vertical-rl; transform: rotate(180deg); height:54px; font-size:11px; padding-bottom:4px !important;
+    white-space:nowrap;
+  }
+  th.datecol.weekend{ color: var(--accent); }
+  .rowlabel{
+    text-align:left !important; white-space:nowrap; padding-right:10px !important; font-weight:600; font-size:12.5px;
+  }
+  .rowlabel .code{ font-family:"JetBrains Mono", ui-monospace, monospace; font-size:11.5px; color:var(--text-secondary); font-weight:500; }
+  .rowlabel .total-cuadras{ font-size:10.5px; color:var(--text-muted); font-weight:500; display:block; margin-top:1px; }
+  .rowlabel .turno-tag{
+    display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:0.03em; text-transform:uppercase;
+    padding:1px 6px; border-radius:5px; margin-right:6px; vertical-align:1px;
+  }
+  .turno-tag.manana{ background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent-strong); }
+  .turno-tag.noche{ background: var(--surface-3); color: var(--text-secondary); }
+  .cell{
+    width:26px; height:26px; border-radius:6px; font-variant-numeric: tabular-nums; font-size:10.5px; font-weight:600;
+    cursor:default; position:relative;
+  }
+  .cell.nodata{ background: var(--heat-nodata) !important; color: transparent !important; }
+  .cell.nodata::after{ content:""; }
+  .totalcol{ border-left: 2px solid var(--border-strong); padding-left:6px !important; }
+  .totalcol .cell, .totalrow .cell{ font-weight:800; }
+  td.totalcol .cell{ width:44px; }
+  tr.totalrow th, tr.totalrow td{ padding-top:6px; }
+  tr.totalrow .rowlabel{ font-weight:800; }
+  tr.totalrow{ border-top: 2px solid var(--border-strong); }
+
+  .heat-legend{ display:flex; align-items:center; gap:10px; margin-top:14px; font-size:11.5px; color:var(--text-muted); flex-wrap:wrap; }
+  .heat-legend .ramp{ width:140px; height:10px; border-radius:5px; background: linear-gradient(90deg, var(--heat-min), var(--heat-mid) 50%, var(--heat-max)); }
+  .heat-legend .nodata-swatch{ width:12px; height:12px; border-radius:3px; background:var(--heat-nodata); display:inline-block; vertical-align:-2px; margin-right:4px; }
+
+  /* ---------- bar chart ---------- */
+  .barlist{ display:flex; flex-direction:column; gap:11px; }
+  .barrow{ display:grid; grid-template-columns: 120px 1fr 96px; align-items:center; gap:10px; }
+  .barrow .name{ font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .barrow .name .code{ font-family:"JetBrains Mono", ui-monospace, monospace; font-size:11px; color:var(--text-secondary); display:block; font-weight:500; }
+  .bartrack{ position:relative; height:16px; background:var(--surface-2); border-radius:5px; overflow:hidden; }
+  .barfill{ position:absolute; inset:0 auto 0 0; border-radius:5px; }
+  .barrow .valwrap{ text-align:right; }
+  .barrow .val{ font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12.5px; font-weight:700; font-variant-numeric: tabular-nums; display:block; }
+  .barrow .cuad{ font-family:"JetBrains Mono", ui-monospace, monospace; font-size:10.5px; color:var(--text-muted); font-variant-numeric: tabular-nums; }
+  .threshold-legend{ display:flex; gap:14px; flex-wrap:wrap; margin-top:14px; font-size:11.5px; color:var(--text-secondary); }
+  .threshold-legend .sw{ width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px; }
+
+  /* ---------- trend chart ---------- */
+  .trend-svg{ width:100%; height:220px; display:block; }
+  .trend-tip{
+    position:absolute; pointer-events:none; background:var(--text-primary); color:var(--page);
+    font-size:11.5px; font-weight:600; padding:5px 9px; border-radius:7px; transform:translate(-50%,-130%);
+    white-space:nowrap; box-shadow: var(--shadow-2); opacity:0; transition:opacity .1s; text-align:center;
+  }
+  .trend-tip .tip-sub{ font-weight:500; opacity:0.75; font-size:10.5px; }
+  .trend-wrap{ position:relative; }
+
+  /* ---------- detail table ---------- */
+  details.detail{ background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:0; box-shadow: var(--shadow-1); overflow:hidden; }
+  details.detail > summary{
+    list-style:none; cursor:pointer; padding:16px 22px; font-weight:700; font-size:14px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  details.detail > summary::-webkit-details-marker{ display:none; }
+  details.detail > summary .chev{ transition: transform .15s; color:var(--text-muted); font-size:12px; }
+  details.detail[open] > summary .chev{ transform: rotate(90deg); }
+  .detail-body{ padding: 0 22px 20px; }
+  .search-row{ margin-bottom:12px; }
+  .search-row input{
+    font: inherit; font-size:13px; padding:8px 12px; border-radius:8px; border:1px solid var(--border);
+    background:var(--surface-2); color:var(--text-primary); width:100%; max-width:280px;
+  }
+  .table-scroll{ overflow-x:auto; }
+  table.detail-table{ width:100%; border-collapse:collapse; font-size:12.5px; }
+  table.detail-table th{
+    text-align:left; font-size:10.5px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase;
+    color:var(--text-muted); padding:8px 10px; border-bottom:1px solid var(--border-strong); white-space:nowrap;
+    cursor:pointer; user-select:none;
+  }
+  table.detail-table th:hover{ color:var(--text-primary); }
+  table.detail-table th .arrow{ font-size:9px; margin-left:3px; opacity:0.6; }
+  table.detail-table td{ padding:7px 10px; border-bottom:1px solid var(--border); white-space:nowrap; }
+  table.detail-table td.num{ font-family:"JetBrains Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; font-weight:600; text-align:right; }
+  table.detail-table tbody tr:hover{ background:var(--surface-2); }
+  .status-pill{ display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; }
+  .status-pill .sw{ width:7px; height:7px; border-radius:50%; }
+
+  footer.note{ font-size:12px; color:var(--text-muted); line-height:1.6; padding:4px 2px 0; }
+
+  @media (max-width: 520px){
+    .masthead{ flex-direction:column; align-items:flex-start; }
+    .masthead-meta{ text-align:left; }
+    .barrow{ grid-template-columns: 92px 1fr 76px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+  <div class="masthead">
+    <div>
+      <p class="eyebrow">Municipalidad de Moreno · Recolección domiciliaria</p>
+      <h1>Cumplimiento de cuadras por recorrido</h1>
+      <p>Cuadras efectivamente recolectadas sobre el total planificado, por turno, día y recorrido.</p>
+    </div>
+    <div class="masthead-meta">
+      Fuente: <b>Reporte de cumplimiento por turno (extendido)</b><br>
+      Período disponible: <b id="metaRange">—</b><br>
+      Registros cargados: <b id="metaCount">—</b>
+    </div>
+  </div>
+
+  <div class="filterbar">
+    <div class="field">
+      <label for="fDesde">Desde</label>
+      <input type="date" id="fDesde">
+    </div>
+    <div class="field">
+      <label for="fHasta">Hasta</label>
+      <input type="date" id="fHasta">
+    </div>
+    <div class="field">
+      <label>Turno</label>
+      <div class="segmented" id="turnoSeg">
+        <button data-turno="todos" class="active">Todos</button>
+        <button data-turno="Mañana">Mañana</button>
+        <button data-turno="Noche">Noche</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Rango rápido</label>
+      <div class="presets" id="presetRow">
+        <button data-preset="all">Todo el período</button>
+        <button data-preset="7">Últimos 7 días</button>
+        <button data-preset="15">Últimos 15 días</button>
+      </div>
+    </div>
+    <div class="filter-spacer"></div>
+    <div class="result-count"><b id="rcTurnos">0</b> turnos · <b id="rcDias">0</b> días · <b id="rcRecorridos">0</b> recorridos</div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi hero">
+      <div class="label">Cumplimiento general</div>
+      <div class="value" id="kpiTotal">—%</div>
+      <div class="sub" id="kpiTotalSub">— cuadras</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Turno mañana</div>
+      <div class="value" id="kpiManana">—%</div>
+      <div class="sub" id="kpiMananaSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Turno noche</div>
+      <div class="value" id="kpiNoche">—%</div>
+      <div class="sub" id="kpiNocheSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><span class="dot" style="background:var(--good)"></span>Mejor recorrido</div>
+      <div class="value" id="kpiBest">—%</div>
+      <div class="sub" id="kpiBestSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="label"><span class="dot" style="background:var(--critical)"></span>A reforzar</div>
+      <div class="value" id="kpiWorst">—%</div>
+      <div class="sub" id="kpiWorstSub">—</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Cumplimiento por día y por recorrido</h2>
+      <span class="desc">% de cuadras cumplidas ese turno (pasá el mouse para ver el conteo) · fila/columna “Total” = cuadras hechas ÷ cuadras totales del rango</span>
+    </div>
+    <div class="heat-scroll">
+      <table class="heat" id="heatTable"></table>
+    </div>
+    <div class="heat-legend">
+      <span>0%</span><span class="ramp"></span><span>100%</span>
+      <span style="margin-left:14px"><span class="nodata-swatch"></span>sin servicio</span>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Promedio por recorrido</h2>
+        <span class="desc">cuadras hechas ÷ cuadras totales del rango, de mayor a menor</span>
+      </div>
+      <div class="barlist" id="barList"></div>
+      <div class="threshold-legend">
+        <span><span class="sw" style="background:var(--good)"></span>≥ 90%</span>
+        <span><span class="sw" style="background:var(--warning-bg)"></span>70–90%</span>
+        <span><span class="sw" style="background:var(--critical)"></span>&lt; 70%</span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Evolución diaria</h2>
+        <span class="desc">cuadras hechas ÷ totales, por día</span>
+      </div>
+      <div class="trend-wrap">
+        <svg class="trend-svg" id="trendSvg" viewBox="0 0 560 220" preserveAspectRatio="none"></svg>
+        <div class="trend-tip" id="trendTip"></div>
+      </div>
+    </div>
+  </div>
+
+  <details class="detail" id="detailPanel">
+    <summary>Detalle por turno <span class="chev">▸</span></summary>
+    <div class="detail-body">
+      <div class="search-row">
+        <input type="text" id="detailSearch" placeholder="Buscar por recorrido, camión o supervisor…">
+      </div>
+      <div class="table-scroll">
+        <table class="detail-table" id="detailTable">
+          <thead>
+            <tr>
+              <th data-key="date">Fecha <span class="arrow"></span></th>
+              <th data-key="turno">Turno <span class="arrow"></span></th>
+              <th data-key="recorrido">Recorrido <span class="arrow"></span></th>
+              <th data-key="camion">Camión <span class="arrow"></span></th>
+              <th data-key="hechas">Cuadras hechas <span class="arrow"></span></th>
+              <th data-key="total">Cuadras totales <span class="arrow"></span></th>
+              <th data-key="pct">Cumplimiento <span class="arrow"></span></th>
+            </tr>
+          </thead>
+          <tbody id="detailBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+
+  <footer class="note">
+    Cuadras hechas / totales provienen de las columnas <em>Cuadras operadas</em> y <em>Cuadras</em> del reporte
+    extendido de cumplimiento por turno. El % de cada turno es cuadras hechas ÷ cuadras totales de ese turno; los
+    totales por recorrido, por día y general se calculan igual, sumando cuadras hechas y cuadras totales de todos
+    los turnos incluidos en el rango filtrado (promedio ponderado, no promedio simple de porcentajes).
+  </footer>
+
+</div>
+
+<script>
+const ROWS = [{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":141,"sin":58,"pct":70.85},{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":53,"sin":48,"pct":52.48},{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":95,"sin":97,"pct":49.48},{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":11,"sin":133,"pct":7.64},{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":86,"sin":118,"pct":42.16},{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":79,"sin":58,"pct":57.66},{"date":"2026-08-01","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":80,"sin":70,"pct":53.33},{"date":"2026-08-02","turno":"Noche","recorrido":"RECDON2032F6","camion":"742","supervisor":"Villalva, Veronica Itati","total":260,"hechas":161,"sin":99,"pct":61.92},{"date":"2026-08-02","turno":"Noche","recorrido":"RECDON2033F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":176,"hechas":133,"sin":43,"pct":75.57},{"date":"2026-08-02","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744","supervisor":"Villalva, Veronica Itati","total":183,"hechas":137,"sin":46,"pct":74.86},{"date":"2026-08-02","turno":"Noche","recorrido":"RECDON2037F6","camion":"700","supervisor":"Villalva, Veronica Itati","total":152,"hechas":150,"sin":2,"pct":98.68},{"date":"2026-08-02","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-02","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":104,"sin":16,"pct":86.67},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":157,"sin":42,"pct":78.89},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":73,"sin":28,"pct":72.28},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":138,"sin":54,"pct":71.88},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":110,"sin":94,"pct":53.92},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":127,"sin":109,"pct":53.81},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":110,"sin":27,"pct":80.29},{"date":"2026-08-03","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-03","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":42,"sin":21,"pct":66.67},{"date":"2026-08-03","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":173,"sin":87,"pct":66.54},{"date":"2026-08-03","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":88,"sin":13,"pct":87.13},{"date":"2026-08-03","turno":"Noche","recorrido":"RECDON2037F6","camion":"700","supervisor":"Villalva, Veronica Itati","total":152,"hechas":148,"sin":4,"pct":97.37},{"date":"2026-08-03","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-03","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":101,"sin":19,"pct":84.17},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":154,"sin":45,"pct":77.39},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":80,"sin":21,"pct":79.21},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":95,"sin":97,"pct":49.48},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":42,"sin":102,"pct":29.17},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":129,"sin":75,"pct":63.24},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":114,"sin":23,"pct":83.21},{"date":"2026-08-04","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":87,"sin":63,"pct":58.0},{"date":"2026-08-04","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":189,"sin":71,"pct":72.69},{"date":"2026-08-04","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 738","supervisor":"Villalva, Veronica Itati","total":176,"hechas":124,"sin":52,"pct":70.45},{"date":"2026-08-04","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 738","supervisor":"Villalva, Veronica Itati","total":183,"hechas":144,"sin":39,"pct":78.69},{"date":"2026-08-04","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":149,"sin":3,"pct":98.03},{"date":"2026-08-04","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-04","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":102,"sin":18,"pct":85.0},{"date":"2026-08-05","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":149,"sin":50,"pct":74.87},{"date":"2026-08-05","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":133,"sin":59,"pct":69.27},{"date":"2026-08-05","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-05","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":90,"sin":114,"pct":44.12},{"date":"2026-08-05","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":118,"sin":118,"pct":50.0},{"date":"2026-08-05","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":98,"sin":39,"pct":71.53},{"date":"2026-08-05","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-05","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":47,"sin":16,"pct":74.6},{"date":"2026-08-05","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":175,"sin":85,"pct":67.31},{"date":"2026-08-05","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":93,"sin":8,"pct":92.08},{"date":"2026-08-05","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":147,"sin":5,"pct":96.71},{"date":"2026-08-05","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":95,"sin":1,"pct":98.96},{"date":"2026-08-05","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":101,"sin":19,"pct":84.17},{"date":"2026-08-06","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":141,"sin":58,"pct":70.85},{"date":"2026-08-06","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"708","supervisor":"Villalva, Veronica Itati","total":192,"hechas":0,"sin":192,"pct":0.0},{"date":"2026-08-06","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"708","supervisor":"Villalva, Veronica Itati","total":144,"hechas":0,"sin":144,"pct":0.0},{"date":"2026-08-06","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":61,"sin":143,"pct":29.9},{"date":"2026-08-06","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-06","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":58,"sin":79,"pct":42.34},{"date":"2026-08-06","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":83,"sin":67,"pct":55.33},{"date":"2026-08-06","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":132,"sin":128,"pct":50.77},{"date":"2026-08-06","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 742","supervisor":"Villalva, Veronica Itati","total":176,"hechas":132,"sin":44,"pct":75.0},{"date":"2026-08-06","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 742","supervisor":"Villalva, Veronica Itati","total":183,"hechas":95,"sin":88,"pct":51.91},{"date":"2026-08-06","turno":"Noche","recorrido":"RECDON2037F6","camion":"706","supervisor":"Villalva, Veronica Itati","total":152,"hechas":132,"sin":20,"pct":86.84},{"date":"2026-08-06","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":84,"sin":12,"pct":87.5},{"date":"2026-08-06","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":65,"sin":55,"pct":54.17},{"date":"2026-08-07","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":154,"sin":45,"pct":77.39},{"date":"2026-08-07","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":125,"sin":67,"pct":65.1},{"date":"2026-08-07","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":75,"sin":129,"pct":36.76},{"date":"2026-08-07","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":106,"sin":130,"pct":44.92},{"date":"2026-08-07","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":89,"sin":48,"pct":64.96},{"date":"2026-08-07","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":44,"sin":19,"pct":69.84},{"date":"2026-08-07","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":170,"sin":90,"pct":65.38},{"date":"2026-08-07","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":83,"sin":18,"pct":82.18},{"date":"2026-08-07","turno":"Noche","recorrido":"RECDON2037F6","camion":"706","supervisor":"Villalva, Veronica Itati","total":152,"hechas":146,"sin":6,"pct":96.05},{"date":"2026-08-07","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":95,"sin":1,"pct":98.96},{"date":"2026-08-07","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":97,"sin":23,"pct":80.83},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":155,"sin":44,"pct":77.89},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":73,"sin":28,"pct":72.28},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":89,"sin":103,"pct":46.35},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":33,"sin":111,"pct":22.92},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"741","supervisor":"Villalva, Veronica Itati","total":204,"hechas":0,"sin":204,"pct":0.0},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":105,"sin":32,"pct":76.64},{"date":"2026-08-08","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":87,"sin":63,"pct":58.0},{"date":"2026-08-09","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":162,"sin":98,"pct":62.31},{"date":"2026-08-09","turno":"Noche","recorrido":"RECDON2033F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":176,"hechas":130,"sin":46,"pct":73.86},{"date":"2026-08-09","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 706","supervisor":"Villalva, Veronica Itati","total":183,"hechas":133,"sin":50,"pct":72.68},{"date":"2026-08-09","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":150,"sin":2,"pct":98.68},{"date":"2026-08-09","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-09","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":108,"sin":12,"pct":90.0},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":157,"sin":42,"pct":78.89},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":75,"sin":26,"pct":74.26},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":139,"sin":53,"pct":72.4},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":126,"sin":78,"pct":61.76},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":148,"sin":88,"pct":62.71},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":108,"sin":29,"pct":78.83},{"date":"2026-08-10","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-10","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":50,"sin":13,"pct":79.37},{"date":"2026-08-10","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":196,"sin":64,"pct":75.38},{"date":"2026-08-10","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":96,"sin":5,"pct":95.05},{"date":"2026-08-10","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":148,"sin":4,"pct":97.37},{"date":"2026-08-10","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":95,"sin":1,"pct":98.96},{"date":"2026-08-10","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":99,"sin":21,"pct":82.5},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":164,"sin":35,"pct":82.41},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":80,"sin":21,"pct":79.21},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":89,"sin":103,"pct":46.35},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":80,"sin":64,"pct":55.56},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":127,"sin":77,"pct":62.25},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":113,"sin":24,"pct":82.48},{"date":"2026-08-11","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":91,"sin":59,"pct":60.67},{"date":"2026-08-11","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 742","supervisor":"Villalva, Veronica Itati","total":260,"hechas":177,"sin":83,"pct":68.08},{"date":"2026-08-11","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 742","supervisor":"Villalva, Veronica Itati","total":176,"hechas":101,"sin":75,"pct":57.39},{"date":"2026-08-11","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 742","supervisor":"Villalva, Veronica Itati","total":183,"hechas":145,"sin":38,"pct":79.23},{"date":"2026-08-11","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":148,"sin":4,"pct":97.37},{"date":"2026-08-11","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-11","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":108,"sin":12,"pct":90.0},{"date":"2026-08-12","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":160,"sin":39,"pct":80.4},{"date":"2026-08-12","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":135,"sin":57,"pct":70.31},{"date":"2026-08-12","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-12","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":118,"sin":86,"pct":57.84},{"date":"2026-08-12","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":144,"sin":92,"pct":61.02},{"date":"2026-08-12","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":111,"sin":26,"pct":81.02},{"date":"2026-08-12","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-12","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":51,"sin":12,"pct":80.95},{"date":"2026-08-12","turno":"Noche","recorrido":"RECDON2032F6","camion":"706","supervisor":"Villalva, Veronica Itati","total":260,"hechas":189,"sin":71,"pct":72.69},{"date":"2026-08-12","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":93,"sin":8,"pct":92.08},{"date":"2026-08-12","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":145,"sin":7,"pct":95.39},{"date":"2026-08-12","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":95,"sin":1,"pct":98.96},{"date":"2026-08-12","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":97,"sin":23,"pct":80.83},{"date":"2026-08-13","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":163,"sin":36,"pct":81.91},{"date":"2026-08-13","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":88,"sin":104,"pct":45.83},{"date":"2026-08-13","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":82,"sin":62,"pct":56.94},{"date":"2026-08-13","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":133,"sin":71,"pct":65.2},{"date":"2026-08-13","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-13","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":106,"sin":31,"pct":77.37},{"date":"2026-08-13","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":90,"sin":60,"pct":60.0},{"date":"2026-08-13","turno":"Noche","recorrido":"RECDON2032F6","camion":"707, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":201,"sin":59,"pct":77.31},{"date":"2026-08-13","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 738","supervisor":"Villalva, Veronica Itati","total":176,"hechas":140,"sin":36,"pct":79.55},{"date":"2026-08-13","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 738","supervisor":"Villalva, Veronica Itati","total":183,"hechas":143,"sin":40,"pct":78.14},{"date":"2026-08-13","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":149,"sin":3,"pct":98.03},{"date":"2026-08-13","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-13","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":107,"sin":13,"pct":89.17},{"date":"2026-08-14","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":160,"sin":39,"pct":80.4},{"date":"2026-08-14","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":135,"sin":57,"pct":70.31},{"date":"2026-08-14","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-14","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":125,"sin":79,"pct":61.27},{"date":"2026-08-14","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":144,"sin":92,"pct":61.02},{"date":"2026-08-14","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":108,"sin":29,"pct":78.83},{"date":"2026-08-14","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-14","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":47,"sin":16,"pct":74.6},{"date":"2026-08-14","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":145,"sin":115,"pct":55.77},{"date":"2026-08-14","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":93,"sin":8,"pct":92.08},{"date":"2026-08-14","turno":"Noche","recorrido":"RECDON2037F6","camion":"742","supervisor":"Villalva, Veronica Itati","total":152,"hechas":146,"sin":6,"pct":96.05},{"date":"2026-08-14","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":92,"sin":4,"pct":95.83},{"date":"2026-08-14","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":91,"sin":29,"pct":75.83},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":165,"sin":34,"pct":82.91},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":75,"sin":26,"pct":74.26},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":89,"sin":103,"pct":46.35},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":69,"sin":75,"pct":47.92},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":124,"sin":80,"pct":60.78},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":106,"sin":31,"pct":77.37},{"date":"2026-08-15","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":90,"sin":60,"pct":60.0},{"date":"2026-08-16","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":170,"sin":90,"pct":65.38},{"date":"2026-08-16","turno":"Noche","recorrido":"RECDON2033F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":176,"hechas":128,"sin":48,"pct":72.73},{"date":"2026-08-16","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 706","supervisor":"Villalva, Veronica Itati","total":183,"hechas":145,"sin":38,"pct":79.23},{"date":"2026-08-16","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":149,"sin":3,"pct":98.03},{"date":"2026-08-16","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-16","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":108,"sin":12,"pct":90.0},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":165,"sin":34,"pct":82.91},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":73,"sin":28,"pct":72.28},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":134,"sin":58,"pct":69.79},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":1,"sin":143,"pct":0.69},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":139,"sin":65,"pct":68.14},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":141,"sin":95,"pct":59.75},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":112,"sin":25,"pct":81.75},{"date":"2026-08-17","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-17","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":51,"sin":12,"pct":80.95},{"date":"2026-08-17","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":165,"sin":95,"pct":63.46},{"date":"2026-08-17","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":95,"sin":6,"pct":94.06},{"date":"2026-08-17","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":141,"sin":11,"pct":92.76},{"date":"2026-08-17","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":95,"sin":1,"pct":98.96},{"date":"2026-08-17","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":101,"sin":19,"pct":84.17},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":161,"sin":38,"pct":80.9},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":78,"sin":23,"pct":77.23},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":87,"sin":105,"pct":45.31},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":93,"sin":51,"pct":64.58},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":129,"sin":75,"pct":63.24},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":116,"sin":21,"pct":84.67},{"date":"2026-08-18","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":90,"sin":60,"pct":60.0},{"date":"2026-08-18","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 725","supervisor":"Villalva, Veronica Itati","total":260,"hechas":183,"sin":77,"pct":70.38},{"date":"2026-08-18","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 725","supervisor":"Villalva, Veronica Itati","total":176,"hechas":117,"sin":59,"pct":66.48},{"date":"2026-08-18","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744","supervisor":"Villalva, Veronica Itati","total":183,"hechas":145,"sin":38,"pct":79.23},{"date":"2026-08-18","turno":"Noche","recorrido":"RECDON2035F3","camion":"726","supervisor":"Villalva, Veronica Itati","total":101,"hechas":0,"sin":101,"pct":0.0},{"date":"2026-08-18","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":148,"sin":4,"pct":97.37},{"date":"2026-08-18","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-18","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":101,"sin":19,"pct":84.17},{"date":"2026-08-19","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":161,"sin":38,"pct":80.9},{"date":"2026-08-19","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":142,"sin":50,"pct":73.96},{"date":"2026-08-19","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-19","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":132,"sin":72,"pct":64.71},{"date":"2026-08-19","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":142,"sin":94,"pct":60.17},{"date":"2026-08-19","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":114,"sin":23,"pct":83.21},{"date":"2026-08-19","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-19","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":54,"sin":9,"pct":85.71},{"date":"2026-08-19","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":177,"sin":83,"pct":68.08},{"date":"2026-08-19","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":91,"sin":10,"pct":90.1},{"date":"2026-08-19","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":147,"sin":5,"pct":96.71},{"date":"2026-08-19","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-19","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":92,"sin":28,"pct":76.67},{"date":"2026-08-20","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":164,"sin":35,"pct":82.41},{"date":"2026-08-20","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":79,"sin":113,"pct":41.15},{"date":"2026-08-20","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":88,"sin":56,"pct":61.11},{"date":"2026-08-20","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":132,"sin":72,"pct":64.71},{"date":"2026-08-20","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-20","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":100,"sin":37,"pct":72.99},{"date":"2026-08-20","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":89,"sin":61,"pct":59.33},{"date":"2026-08-20","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 740","supervisor":"Villalva, Veronica Itati","total":260,"hechas":191,"sin":69,"pct":73.46},{"date":"2026-08-20","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 740","supervisor":"Villalva, Veronica Itati","total":176,"hechas":145,"sin":31,"pct":82.39},{"date":"2026-08-20","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744","supervisor":"Villalva, Veronica Itati","total":183,"hechas":151,"sin":32,"pct":82.51},{"date":"2026-08-20","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":149,"sin":3,"pct":98.03},{"date":"2026-08-20","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-20","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":103,"sin":17,"pct":85.83},{"date":"2026-08-21","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":164,"sin":35,"pct":82.41},{"date":"2026-08-21","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":135,"sin":57,"pct":70.31},{"date":"2026-08-21","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-21","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":133,"sin":71,"pct":65.2},{"date":"2026-08-21","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":145,"sin":91,"pct":61.44},{"date":"2026-08-21","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":110,"sin":27,"pct":80.29},{"date":"2026-08-21","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-21","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":54,"sin":9,"pct":85.71},{"date":"2026-08-21","turno":"Noche","recorrido":"RECDON2032F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":260,"hechas":183,"sin":77,"pct":70.38},{"date":"2026-08-21","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":97,"sin":4,"pct":96.04},{"date":"2026-08-21","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":142,"sin":10,"pct":93.42},{"date":"2026-08-21","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-21","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":102,"sin":18,"pct":85.0},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":165,"sin":34,"pct":82.91},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":77,"sin":24,"pct":76.24},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":91,"sin":101,"pct":47.4},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":85,"sin":59,"pct":59.03},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":121,"sin":83,"pct":59.31},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":113,"sin":24,"pct":82.48},{"date":"2026-08-22","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":86,"sin":64,"pct":57.33},{"date":"2026-08-23","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 742","supervisor":"Villalva, Veronica Itati","total":260,"hechas":186,"sin":74,"pct":71.54},{"date":"2026-08-23","turno":"Noche","recorrido":"RECDON2033F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":176,"hechas":137,"sin":39,"pct":77.84},{"date":"2026-08-23","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 707","supervisor":"Villalva, Veronica Itati","total":183,"hechas":151,"sin":32,"pct":82.51},{"date":"2026-08-23","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":147,"sin":5,"pct":96.71},{"date":"2026-08-23","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":95,"sin":1,"pct":98.96},{"date":"2026-08-23","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":107,"sin":13,"pct":89.17},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":160,"sin":39,"pct":80.4},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":68,"sin":33,"pct":67.33},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":138,"sin":54,"pct":71.88},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":1,"sin":143,"pct":0.69},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":124,"sin":80,"pct":60.78},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":150,"sin":86,"pct":63.56},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":124,"sin":13,"pct":90.51},{"date":"2026-08-24","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-24","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":56,"sin":7,"pct":88.89},{"date":"2026-08-24","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 742","supervisor":"Villalva, Veronica Itati","total":260,"hechas":216,"sin":44,"pct":83.08},{"date":"2026-08-24","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":96,"sin":5,"pct":95.05},{"date":"2026-08-24","turno":"Noche","recorrido":"RECDON2037F6","camion":"707","supervisor":"Villalva, Veronica Itati","total":152,"hechas":149,"sin":3,"pct":98.03},{"date":"2026-08-24","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-24","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":104,"sin":16,"pct":86.67},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":169,"sin":30,"pct":84.92},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":79,"sin":22,"pct":78.22},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":81,"sin":111,"pct":42.19},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":92,"sin":52,"pct":63.89},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":134,"sin":70,"pct":65.69},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":111,"sin":26,"pct":81.02},{"date":"2026-08-25","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":93,"sin":57,"pct":62.0},{"date":"2026-08-25","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":199,"sin":61,"pct":76.54},{"date":"2026-08-25","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 738","supervisor":"Villalva, Veronica Itati","total":176,"hechas":142,"sin":34,"pct":80.68},{"date":"2026-08-25","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 738","supervisor":"Villalva, Veronica Itati","total":183,"hechas":153,"sin":30,"pct":83.61},{"date":"2026-08-25","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":147,"sin":5,"pct":96.71},{"date":"2026-08-25","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-25","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":105,"sin":15,"pct":87.5},{"date":"2026-08-26","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":165,"sin":34,"pct":82.91},{"date":"2026-08-26","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":137,"sin":55,"pct":71.35},{"date":"2026-08-26","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":2,"sin":142,"pct":1.39},{"date":"2026-08-26","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":125,"sin":79,"pct":61.27},{"date":"2026-08-26","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":145,"sin":91,"pct":61.44},{"date":"2026-08-26","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":119,"sin":18,"pct":86.86},{"date":"2026-08-26","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-26","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":53,"sin":10,"pct":84.13},{"date":"2026-08-26","turno":"Noche","recorrido":"RECDON2032F6","camion":"707","supervisor":"Villalva, Veronica Itati","total":260,"hechas":184,"sin":76,"pct":70.77},{"date":"2026-08-26","turno":"Noche","recorrido":"RECDON2034F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":183,"hechas":8,"sin":175,"pct":4.37},{"date":"2026-08-26","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":146,"sin":6,"pct":96.05},{"date":"2026-08-27","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":143,"sin":56,"pct":71.86},{"date":"2026-08-27","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":91,"sin":101,"pct":47.4},{"date":"2026-08-27","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":22,"sin":122,"pct":15.28},{"date":"2026-08-27","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":71,"sin":133,"pct":34.8},{"date":"2026-08-27","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-27","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":78,"sin":59,"pct":56.93},{"date":"2026-08-27","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":87,"sin":63,"pct":58.0},{"date":"2026-08-27","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":191,"sin":69,"pct":73.46},{"date":"2026-08-27","turno":"Noche","recorrido":"RECDON2033F3","camion":"701, 738","supervisor":"Villalva, Veronica Itati","total":176,"hechas":148,"sin":28,"pct":84.09},{"date":"2026-08-27","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 744, 738","supervisor":"Villalva, Veronica Itati","total":183,"hechas":135,"sin":48,"pct":73.77},{"date":"2026-08-27","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":144,"sin":8,"pct":94.74},{"date":"2026-08-27","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-27","turno":"Noche","recorrido":"RECDON2040F6","camion":"744, 743","supervisor":"Villalva, Veronica Itati","total":120,"hechas":102,"sin":18,"pct":85.0},{"date":"2026-08-28","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":154,"sin":45,"pct":77.39},{"date":"2026-08-28","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":132,"sin":60,"pct":68.75},{"date":"2026-08-28","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":1,"sin":143,"pct":0.69},{"date":"2026-08-28","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":80,"sin":124,"pct":39.22},{"date":"2026-08-28","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":100,"sin":136,"pct":42.37},{"date":"2026-08-28","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":104,"sin":33,"pct":75.91},{"date":"2026-08-28","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-28","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":51,"sin":12,"pct":80.95},{"date":"2026-08-28","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":206,"sin":54,"pct":79.23},{"date":"2026-08-28","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":95,"sin":6,"pct":94.06},{"date":"2026-08-28","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":147,"sin":5,"pct":96.71},{"date":"2026-08-28","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":95,"sin":1,"pct":98.96},{"date":"2026-08-28","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":101,"sin":19,"pct":84.17},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":156,"sin":43,"pct":78.39},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":74,"sin":27,"pct":73.27},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":90,"sin":102,"pct":46.88},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":42,"sin":102,"pct":29.17},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":113,"sin":91,"pct":55.39},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":0,"sin":236,"pct":0.0},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":101,"sin":36,"pct":73.72},{"date":"2026-08-29","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":88,"sin":62,"pct":58.67},{"date":"2026-08-30","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 742","supervisor":"Villalva, Veronica Itati","total":260,"hechas":187,"sin":73,"pct":71.92},{"date":"2026-08-30","turno":"Noche","recorrido":"RECDON2033F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":176,"hechas":137,"sin":39,"pct":77.84},{"date":"2026-08-30","turno":"Noche","recorrido":"RECDON2034F3","camion":"743, 742, 744","supervisor":"Villalva, Veronica Itati","total":183,"hechas":154,"sin":29,"pct":84.15},{"date":"2026-08-30","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":146,"sin":6,"pct":96.05},{"date":"2026-08-30","turno":"Noche","recorrido":"RECDON2039F6","camion":"743, 744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-30","turno":"Noche","recorrido":"RECDON2040F6","camion":"743, 744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":108,"sin":12,"pct":90.0},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1032F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":199,"hechas":163,"sin":36,"pct":81.91},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1033F3","camion":"744","supervisor":"Villalva, Veronica Itati","total":101,"hechas":73,"sin":28,"pct":72.28},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1034F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":192,"hechas":134,"sin":58,"pct":69.79},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1035F3","camion":"702","supervisor":"Villalva, Veronica Itati","total":144,"hechas":1,"sin":143,"pct":0.69},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1036F6","camion":"708","supervisor":"Villalva, Veronica Itati","total":204,"hechas":123,"sin":81,"pct":60.29},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1037F6","camion":"743","supervisor":"Villalva, Veronica Itati","total":236,"hechas":148,"sin":88,"pct":62.71},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1038F6","camion":"740","supervisor":"Villalva, Veronica Itati","total":137,"hechas":112,"sin":25,"pct":81.75},{"date":"2026-08-31","turno":"Mañana","recorrido":"RECDOM1039F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":150,"hechas":0,"sin":150,"pct":0.0},{"date":"2026-08-31","turno":"Noche","recorrido":"RECDON2031F3","camion":"701","supervisor":"Villalva, Veronica Itati","total":63,"hechas":55,"sin":8,"pct":87.3},{"date":"2026-08-31","turno":"Noche","recorrido":"RECDON2032F6","camion":"708, 738","supervisor":"Villalva, Veronica Itati","total":260,"hechas":195,"sin":65,"pct":75.0},{"date":"2026-08-31","turno":"Noche","recorrido":"RECDON2035F3","camion":"743","supervisor":"Villalva, Veronica Itati","total":101,"hechas":93,"sin":8,"pct":92.08},{"date":"2026-08-31","turno":"Noche","recorrido":"RECDON2037F6","camion":"726","supervisor":"Villalva, Veronica Itati","total":152,"hechas":145,"sin":7,"pct":95.39},{"date":"2026-08-31","turno":"Noche","recorrido":"RECDON2039F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":96,"hechas":96,"sin":0,"pct":100.0},{"date":"2026-08-31","turno":"Noche","recorrido":"RECDON2040F6","camion":"744","supervisor":"Villalva, Veronica Itati","total":120,"hechas":103,"sin":17,"pct":85.83}];
+
+const fmtPct = v => (Math.round(v*10)/10).toLocaleString('es-AR', {minimumFractionDigits:1, maximumFractionDigits:1}) + '%';
+const fmtInt = v => Math.round(v).toLocaleString('es-AR');
+const clamp01 = v => Math.max(0, Math.min(1, v));
+
+function statusColor(pct){
+  if(pct >= 90) return 'var(--good)';
+  if(pct >= 70) return 'var(--warning-bg)';
+  return 'var(--critical)';
+}
+
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+function rgbToHex([r,g,b]){
+  return '#' + [r,g,b].map(x => Math.round(clamp01(x/255)*255).toString(16).padStart(2,'0')).join('');
+}
+function lerp(a,b,t){ return a + (b-a)*t; }
+function luminance([r,g,b]){
+  const a = [r,g,b].map(v => { v/=255; return v<=0.03928 ? v/12.92 : Math.pow((v+0.055)/1.055,2.4); });
+  return 0.2126*a[0] + 0.7152*a[1] + 0.0722*a[2];
+}
+
+let heatMinRgb, heatMidRgb, heatMaxRgb;
+function readHeatRamp(){
+  const cs = getComputedStyle(document.documentElement);
+  heatMinRgb = hexToRgb(cs.getPropertyValue('--heat-min').trim());
+  heatMidRgb = hexToRgb(cs.getPropertyValue('--heat-mid').trim());
+  heatMaxRgb = hexToRgb(cs.getPropertyValue('--heat-max').trim());
+}
+function lerpColorRgb(c1,c2,t){ return [lerp(c1[0],c2[0],t), lerp(c1[1],c2[1],t), lerp(c1[2],c2[2],t)]; }
+function heatColor(pct){
+  const t = clamp01(pct/100);
+  return t < 0.5 ? lerpColorRgb(heatMinRgb, heatMidRgb, t/0.5) : lerpColorRgb(heatMidRgb, heatMaxRgb, (t-0.5)/0.5);
+}
+function heatInk(rgb){
+  return luminance(rgb) > 0.55 ? '#0d1512' : '#ffffff';
+}
+
+// weighted aggregate: sum(hechas)/sum(total)*100, or null if no cuadras in range
+function agg(rows){
+  if(!rows.length) return { pct: null, hechas: 0, total: 0, n: 0 };
+  let hechas = 0, total = 0;
+  rows.forEach(r => { hechas += r.hechas; total += r.total; });
+  return { pct: total > 0 ? hechas/total*100 : null, hechas, total, n: rows.length };
+}
+
+const ROUTE_META = {};
+ROWS.forEach(r => { ROUTE_META[r.recorrido] = r.turno; });
+const ALL_ROUTES = Object.keys(ROUTE_META).sort();
+const ALL_DATES = [...new Set(ROWS.map(r => r.date))].sort();
+const MIN_DATE = ALL_DATES[0], MAX_DATE = ALL_DATES[ALL_DATES.length-1];
+
+document.getElementById('metaRange').textContent = `${fmtDateEs(MIN_DATE)} – ${fmtDateEs(MAX_DATE)}`;
+document.getElementById('metaCount').textContent = ROWS.length.toLocaleString('es-AR');
+
+function fmtDateEs(iso){
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+function fmtDateShort(iso){
+  const [y,m,d] = iso.split('-');
+  return `${d}/${m}`;
+}
+function dow(iso){
+  return new Date(iso + 'T12:00:00').getDay(); // 0 sun .. 6 sat
+}
+
+const state = { desde: MIN_DATE, hasta: MAX_DATE, turno: 'todos', preset: 'all', sortKey:'date', sortDir:1, search:'' };
+
+const fDesde = document.getElementById('fDesde');
+const fHasta = document.getElementById('fHasta');
+fDesde.min = MIN_DATE; fDesde.max = MAX_DATE;
+fHasta.min = MIN_DATE; fHasta.max = MAX_DATE;
+fDesde.value = state.desde; fHasta.value = state.hasta;
+
+fDesde.addEventListener('change', () => { state.desde = fDesde.value || MIN_DATE; state.preset='custom'; setPresetActive(null); render(); });
+fHasta.addEventListener('change', () => { state.hasta = fHasta.value || MAX_DATE; state.preset='custom'; setPresetActive(null); render(); });
+
+document.getElementById('turnoSeg').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if(!btn) return;
+  document.querySelectorAll('#turnoSeg button').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.turno = btn.dataset.turno;
+  render();
+});
+
+function setPresetActive(el){
+  document.querySelectorAll('#presetRow button').forEach(b => b.classList.remove('active'));
+  if(el) el.classList.add('active');
+}
+document.getElementById('presetRow').addEventListener('click', e => {
+  const btn = e.target.closest('button'); if(!btn) return;
+  const p = btn.dataset.preset;
+  state.preset = p;
+  if(p === 'all'){ state.desde = MIN_DATE; state.hasta = MAX_DATE; }
+  else {
+    const n = parseInt(p,10);
+    const end = new Date(MAX_DATE + 'T12:00:00');
+    const start = new Date(end); start.setDate(start.getDate() - (n-1));
+    state.hasta = MAX_DATE;
+    state.desde = start.toISOString().slice(0,10) < MIN_DATE ? MIN_DATE : start.toISOString().slice(0,10);
+  }
+  fDesde.value = state.desde; fHasta.value = state.hasta;
+  setPresetActive(btn);
+  render();
+});
+setPresetActive(document.querySelector('#presetRow button[data-preset="all"]'));
+
+function getFiltered(){
+  return ROWS.filter(r => r.date >= state.desde && r.date <= state.hasta && (state.turno === 'todos' || r.turno === state.turno));
+}
+
+function render(){
+  readHeatRamp();
+  const rows = getFiltered();
+  const dates = [...new Set(rows.map(r=>r.date))].sort();
+  const routes = [...new Set(rows.map(r=>r.recorrido))].sort((a,b) => {
+    const ta = ROUTE_META[a], tb = ROUTE_META[b];
+    if(ta !== tb) return ta === 'Mañana' ? -1 : 1;
+    return a.localeCompare(b);
+  });
+
+  document.getElementById('rcTurnos').textContent = rows.length;
+  document.getElementById('rcDias').textContent = dates.length;
+  document.getElementById('rcRecorridos').textContent = routes.length;
+
+  // ---- KPIs ----
+  const totalAgg = agg(rows);
+  document.getElementById('kpiTotal').textContent = totalAgg.pct==null ? '—' : fmtPct(totalAgg.pct);
+  document.getElementById('kpiTotalSub').textContent = totalAgg.pct==null ? '—' : `${fmtInt(totalAgg.hechas)} / ${fmtInt(totalAgg.total)} cuadras · ${rows.length} turnos`;
+
+  const mananaAgg = agg(rows.filter(r=>r.turno==='Mañana'));
+  const nocheAgg = agg(rows.filter(r=>r.turno==='Noche'));
+  document.getElementById('kpiManana').textContent = mananaAgg.pct==null ? '—' : fmtPct(mananaAgg.pct);
+  document.getElementById('kpiMananaSub').textContent = mananaAgg.pct==null ? '—' : `${fmtInt(mananaAgg.hechas)} / ${fmtInt(mananaAgg.total)} cuadras`;
+  document.getElementById('kpiNoche').textContent = nocheAgg.pct==null ? '—' : fmtPct(nocheAgg.pct);
+  document.getElementById('kpiNocheSub').textContent = nocheAgg.pct==null ? '—' : `${fmtInt(nocheAgg.hechas)} / ${fmtInt(nocheAgg.total)} cuadras`;
+
+  const routeAggs = routes.map(rt => ({ recorrido: rt, turno: ROUTE_META[rt], ...agg(rows.filter(r=>r.recorrido===rt)) }))
+    .filter(x => x.pct != null);
+  routeAggs.sort((a,b) => b.pct - a.pct);
+  if(routeAggs.length){
+    const best = routeAggs[0], worst = routeAggs[routeAggs.length-1];
+    document.getElementById('kpiBest').textContent = fmtPct(best.pct);
+    document.getElementById('kpiBestSub').textContent = `${best.recorrido} · ${fmtInt(best.hechas)}/${fmtInt(best.total)} cuadras`;
+    document.getElementById('kpiWorst').textContent = fmtPct(worst.pct);
+    document.getElementById('kpiWorstSub').textContent = `${worst.recorrido} · ${fmtInt(worst.hechas)}/${fmtInt(worst.total)} cuadras`;
+  } else {
+    document.getElementById('kpiBest').textContent = '—'; document.getElementById('kpiBestSub').textContent = '—';
+    document.getElementById('kpiWorst').textContent = '—'; document.getElementById('kpiWorstSub').textContent = '—';
+  }
+
+  renderHeatmap(rows, dates, routes);
+  renderBars(routeAggs);
+  renderTrend(rows, dates);
+  renderDetailTable(rows);
+}
+
+function renderHeatmap(rows, dates, routes){
+  const idx = {};
+  rows.forEach(r => { idx[r.recorrido+'|'+r.date] = r; });
+
+  const table = document.getElementById('heatTable');
+  table.innerHTML = '';
+
+  const thead = document.createElement('thead');
+  const htr = document.createElement('tr');
+  const corner = document.createElement('th');
+  corner.className = 'heat-corner';
+  corner.innerHTML = '<span class="grp">Recorrido</span>';
+  htr.appendChild(corner);
+  dates.forEach(d => {
+    const th = document.createElement('th');
+    th.className = 'datecol' + ([0,6].includes(dow(d)) ? ' weekend' : '');
+    th.textContent = fmtDateShort(d);
+    htr.appendChild(th);
+  });
+  const thTotal = document.createElement('th');
+  thTotal.className = 'datecol totalcol';
+  thTotal.textContent = 'Total';
+  htr.appendChild(thTotal);
+  thead.appendChild(htr);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  routes.forEach(rt => {
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.className = 'rowlabel';
+    const turno = ROUTE_META[rt];
+    const totalCuadras = rows.find(r => r.recorrido === rt)?.total;
+    th.innerHTML = `<span class="turno-tag ${turno==='Mañana'?'manana':'noche'}">${turno==='Mañana'?'AM':'PM'}</span><span class="code">${rt}</span><span class="total-cuadras">${totalCuadras ? fmtInt(totalCuadras)+' cuadras' : ''}</span>`;
+    tr.appendChild(th);
+
+    const rowRecords = [];
+    dates.forEach(d => {
+      const td = document.createElement('td');
+      const key = rt+'|'+d;
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      const rec = idx[key];
+      if(rec){
+        rowRecords.push(rec);
+        const rgb = heatColor(rec.pct);
+        cell.style.background = rgbToHex(rgb);
+        cell.style.color = heatInk(rgb);
+        cell.textContent = Math.round(rec.pct);
+        cell.title = `${rt} · ${fmtDateEs(d)} · ${fmtInt(rec.hechas)}/${fmtInt(rec.total)} cuadras (${fmtPct(rec.pct)})`;
+      } else {
+        cell.className += ' nodata';
+        cell.title = `${rt} · ${fmtDateEs(d)} · sin servicio`;
+      }
+      td.appendChild(cell);
+      tr.appendChild(td);
+    });
+
+    const tdTotal = document.createElement('td');
+    tdTotal.className = 'totalcol';
+    const cellTotal = document.createElement('div');
+    cellTotal.className = 'cell';
+    const a = agg(rowRecords);
+    if(a.pct != null){
+      const rgb = heatColor(a.pct);
+      cellTotal.style.background = rgbToHex(rgb);
+      cellTotal.style.color = heatInk(rgb);
+      cellTotal.textContent = Math.round(a.pct);
+      cellTotal.title = `Total ${rt}: ${fmtInt(a.hechas)}/${fmtInt(a.total)} cuadras (${fmtPct(a.pct)})`;
+    } else { cellTotal.className += ' nodata'; }
+    tdTotal.appendChild(cellTotal);
+    tr.appendChild(tdTotal);
+
+    tbody.appendChild(tr);
+  });
+
+  // total row (per day, across routes)
+  const totalTr = document.createElement('tr');
+  totalTr.className = 'totalrow';
+  const totalTh = document.createElement('th');
+  totalTh.className = 'rowlabel';
+  totalTh.textContent = 'Total';
+  totalTr.appendChild(totalTh);
+  dates.forEach(d => {
+    const dayRecords = routes.map(rt => idx[rt+'|'+d]).filter(Boolean);
+    const td = document.createElement('td');
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    const a = agg(dayRecords);
+    if(a.pct != null){
+      const rgb = heatColor(a.pct);
+      cell.style.background = rgbToHex(rgb);
+      cell.style.color = heatInk(rgb);
+      cell.textContent = Math.round(a.pct);
+      cell.title = `Total ${fmtDateEs(d)}: ${fmtInt(a.hechas)}/${fmtInt(a.total)} cuadras (${fmtPct(a.pct)})`;
+    } else { cell.className += ' nodata'; }
+    td.appendChild(cell);
+    totalTr.appendChild(td);
+  });
+  const tdGrand = document.createElement('td');
+  tdGrand.className = 'totalcol';
+  const cellGrand = document.createElement('div');
+  cellGrand.className = 'cell';
+  const grandAgg = agg(rows);
+  if(grandAgg.pct != null){
+    const rgb = heatColor(grandAgg.pct);
+    cellGrand.style.background = rgbToHex(rgb);
+    cellGrand.style.color = heatInk(rgb);
+    cellGrand.textContent = Math.round(grandAgg.pct);
+    cellGrand.title = `Total general: ${fmtInt(grandAgg.hechas)}/${fmtInt(grandAgg.total)} cuadras (${fmtPct(grandAgg.pct)})`;
+  } else { cellGrand.className += ' nodata'; }
+  tdGrand.appendChild(cellGrand);
+  totalTr.appendChild(tdGrand);
+  tbody.appendChild(totalTr);
+
+  table.appendChild(tbody);
+}
+
+function renderBars(routeAggs){
+  const list = document.getElementById('barList');
+  list.innerHTML = '';
+  if(!routeAggs.length){ list.innerHTML = '<p style="color:var(--text-muted);font-size:13px;">Sin datos en el rango seleccionado.</p>'; return; }
+  routeAggs.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'barrow';
+    row.innerHTML = `
+      <div class="name"><span class="code">${r.recorrido}</span>${r.turno}</div>
+      <div class="bartrack"><div class="barfill" style="width:${clamp01(r.pct/100)*100}%; background:${statusColor(r.pct)}"></div></div>
+      <div class="valwrap"><span class="val">${fmtPct(r.pct)}</span><span class="cuad">${fmtInt(r.hechas)}/${fmtInt(r.total)}</span></div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderTrend(rows, dates){
+  const svg = document.getElementById('trendSvg');
+  const tip = document.getElementById('trendTip');
+  svg.innerHTML = '';
+  if(dates.length < 1){ return; }
+
+  const W = 560, H = 220, padL = 34, padR = 12, padT = 14, padB = 26;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  const points = dates.map(d => ({ date: d, ...agg(rows.filter(r => r.date === d)) })).filter(p => p.pct != null);
+
+  const n = points.length;
+  const x = i => n <= 1 ? padL + plotW/2 : padL + (plotW * i/(n-1));
+  const y = v => padT + plotH * (1 - clamp01(v/100));
+
+  const ns = 'http://www.w3.org/2000/svg';
+  function el(tag, attrs){ const e = document.createElementNS(ns, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+
+  [0,25,50,75,100].forEach(v => {
+    const gy = y(v);
+    svg.appendChild(el('line', {x1:padL, x2:W-padR, y1:gy, y2:gy, stroke:'var(--border)', 'stroke-width':1}));
+    const t = el('text', {x:padL-8, y:gy+3, 'text-anchor':'end', 'font-size':9.5, fill:'var(--text-muted)', 'font-family':'JetBrains Mono, monospace'});
+    t.textContent = v; svg.appendChild(t);
+  });
+
+  if(n === 0){
+    const t = el('text', {x:W/2, y:H/2, 'text-anchor':'middle', fill:'var(--text-muted)', 'font-size':12});
+    t.textContent = 'Sin datos en el rango seleccionado';
+    svg.appendChild(t);
+    return;
+  }
+
+  let areaPath = `M ${x(0)} ${y(points[0].pct)}`;
+  points.forEach((p,i) => { if(i>0) areaPath += ` L ${x(i)} ${y(p.pct)}`; });
+  areaPath += ` L ${x(n-1)} ${padT+plotH} L ${x(0)} ${padT+plotH} Z`;
+  svg.appendChild(el('path', {d: areaPath, fill:'var(--accent)', opacity:0.14, stroke:'none'}));
+
+  let linePath = `M ${x(0)} ${y(points[0].pct)}`;
+  points.forEach((p,i) => { if(i>0) linePath += ` L ${x(i)} ${y(p.pct)}`; });
+  svg.appendChild(el('path', {d: linePath, fill:'none', stroke:'var(--accent)', 'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round'}));
+
+  [0, Math.floor((n-1)/2), n-1].forEach(i => {
+    if(i<0) return;
+    const t = el('text', {x:x(i), y:H-8, 'text-anchor':'middle', 'font-size':9.5, fill:'var(--text-muted)', 'font-family':'JetBrains Mono, monospace'});
+    t.textContent = fmtDateShort(points[i].date);
+    svg.appendChild(t);
+  });
+
+  points.forEach((p,i) => {
+    const cx = x(i), cy = y(p.pct);
+    const dot = el('circle', {cx, cy, r:2.5, fill:'var(--accent)'});
+    svg.appendChild(dot);
+    const hit = el('rect', {x: cx-Math.max(6, plotW/n/2), y:padT, width: Math.max(12, plotW/n), height: plotH, fill:'transparent'});
+    hit.addEventListener('mouseenter', () => {
+      dot.setAttribute('r', 4.5);
+      tip.style.opacity = 1;
+      tip.innerHTML = `${fmtDateEs(p.date)} · ${fmtPct(p.pct)}<div class="tip-sub">${fmtInt(p.hechas)}/${fmtInt(p.total)} cuadras</div>`;
+      const rect = svg.getBoundingClientRect();
+      tip.style.left = (cx/W*rect.width) + 'px';
+      tip.style.top = (cy/H*rect.height) + 'px';
+    });
+    hit.addEventListener('mouseleave', () => { dot.setAttribute('r', 2.5); tip.style.opacity = 0; });
+    svg.appendChild(hit);
+  });
+}
+
+function renderDetailTable(rows){
+  let data = rows.slice();
+  if(state.search){
+    const q = state.search.toLowerCase();
+    data = data.filter(r => r.recorrido.toLowerCase().includes(q) || r.camion.toLowerCase().includes(q) || (r.supervisor||'').toLowerCase().includes(q));
+  }
+  data.sort((a,b) => {
+    let va = a[state.sortKey], vb = b[state.sortKey];
+    if(typeof va === 'number'){ return (va-vb) * state.sortDir; }
+    if(va < vb) return -1*state.sortDir;
+    if(va > vb) return 1*state.sortDir;
+    return 0;
+  });
+  const body = document.getElementById('detailBody');
+  body.innerHTML = '';
+  if(!data.length){
+    body.innerHTML = '<tr><td colspan="7" style="color:var(--text-muted); padding:14px 10px;">Sin resultados.</td></tr>';
+    return;
+  }
+  const frag = document.createDocumentFragment();
+  data.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${fmtDateEs(r.date)}</td>
+      <td>${r.turno}</td>
+      <td>${r.recorrido}</td>
+      <td>${r.camion || '—'}</td>
+      <td class="num">${fmtInt(r.hechas)}</td>
+      <td class="num">${fmtInt(r.total)}</td>
+      <td class="num"><span class="status-pill"><span class="sw" style="background:${statusColor(r.pct)}"></span>${fmtPct(r.pct)}</span></td>
+    `;
+    frag.appendChild(tr);
+  });
+  body.appendChild(frag);
+}
+
+document.getElementById('detailSearch').addEventListener('input', e => { state.search = e.target.value; renderDetailTable(getFiltered()); });
+document.querySelectorAll('#detailTable th[data-key]').forEach(th => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.key;
+    if(state.sortKey === key){ state.sortDir *= -1; } else { state.sortKey = key; state.sortDir = 1; }
+    document.querySelectorAll('#detailTable th .arrow').forEach(a => a.textContent = '');
+    th.querySelector('.arrow').textContent = state.sortDir === 1 ? '▲' : '▼';
+    renderDetailTable(getFiltered());
+  });
+});
+
+const mq = window.matchMedia('(prefers-color-scheme: dark)');
+mq.addEventListener('change', render);
+
+render();
+</script>
+</body>
+</html>
