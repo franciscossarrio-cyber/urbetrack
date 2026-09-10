@@ -302,10 +302,29 @@ def collect_all_pages(page) -> list[dict]:
         with page.expect_response(lambda r: REPORT_PATH in r.url, timeout=30000):
             link.click()
 
-        _wait_for_page_stable(page, next_page, expected_count(next_page))
+        # La cantidad de filas puede coincidir con lo esperado por
+        # casualidad aunque el contenido siga siendo una mezcla a medio
+        # renderizar (algunas filas de la página anterior conviviendo
+        # con algunas de la nueva) -- verificamos también que ninguna
+        # fila de esta página sea un duplicado exacto de una ya
+        # recolectada, reintentando unas cuantas veces si lo es.
+        existing_keys = {tuple(sorted(r.items())) for r in all_rows}
+        page_rows = []
+        for _ in range(5):
+            _wait_for_page_stable(page, next_page, expected_count(next_page))
+            page_rows = parse_grid(page)
+            if not any(tuple(sorted(r.items())) in existing_keys for r in page_rows):
+                break
+            page.wait_for_timeout(500)
+        else:
+            print(
+                f"ADVERTENCIA: la página {next_page} siguió trayendo filas "
+                f"duplicadas de páginas anteriores después de reintentar.",
+                file=sys.stderr,
+            )
 
         visited.add(next_page)
-        all_rows.extend(parse_grid(page))
+        all_rows.extend(page_rows)
 
     if total is not None and len(all_rows) != total:
         print(
