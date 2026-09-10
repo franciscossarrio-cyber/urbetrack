@@ -24,6 +24,7 @@ from datetime import datetime, timedelta
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
+from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 BASE_URL = "https://red.urbetrack.com"
 LOGIN_PATH = "/default.aspx"
@@ -96,7 +97,18 @@ def set_route_filter(page, target_routes: set) -> None:
     'Ruta', destildando cualquier otra que haya quedado de una sesión
     anterior. No depende de qué esté guardado server-side."""
     page.click(SEL_ROUTE_DROPDOWN_LABEL)
-    page.wait_for_timeout(300)  # el panel tarda un instante en desplegar
+    try:
+        page.wait_for_selector(SEL_ROUTE_CHECKBOXES, timeout=5000)
+    except PlaywrightTimeoutError:
+        pass  # seguimos igual -- el dump de debug de abajo va a mostrar por qué
+
+    # Dump de diagnóstico SIEMPRE (no solo si falla) -- así podemos ver
+    # en el artifact del run cómo quedó el panel realmente renderizado
+    # cuando el selector de checkboxes no matchea nada.
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    page.screenshot(path=os.path.join(OUTPUT_DIR, "debug_route_dropdown.png"))
+    with open(os.path.join(OUTPUT_DIR, "debug_route_dropdown.html"), "w", encoding="utf-8") as f:
+        f.write(page.content())
 
     checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
     count = checkboxes.count()
