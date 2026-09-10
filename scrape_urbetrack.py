@@ -68,12 +68,16 @@ def login(page, username: str, password: str) -> None:
     page.fill(SEL_USER, username)
     page.fill(SEL_PASS, password)
 
-    # El click dispara ValidateRecaptcha() -> grecaptcha.execute() (async)
-    # -> __doPostBack('btLogin','') recién cuando llega el token. Con un
-    # browser real esto se resuelve solo; solo hay que esperar bien. En
-    # runners de CI (más lentos que una compu local) esto puede tardar
-    # bastante más de lo esperable.
-    page.click(SEL_LOGIN_BTN)
+    # El click dispara ValidateRecaptcha() -> grecaptcha.execute() (async,
+    # puede tardar varios segundos) -> recién ahí __doPostBack('btLogin','')
+    # hace un form.submit() real (navegación de página completa, no AJAX).
+    # Por eso hay que esperar la NAVEGACIÓN explícitamente, no solo que la
+    # red esté "quieta" en la página actual -- si no, Playwright puede
+    # considerar la página de login ya "quieta" y devolver el control
+    # antes de que la navegación real siquiera arranque.
+    with page.expect_navigation(timeout=60000):
+        page.click(SEL_LOGIN_BTN)
+
     page.wait_for_load_state("networkidle", timeout=45000)
 
     # Esperar a que aparezca el layout post-login (label de usuario en
