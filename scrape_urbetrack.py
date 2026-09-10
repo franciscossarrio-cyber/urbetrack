@@ -18,6 +18,7 @@ Salida:
 """
 
 import csv
+import json
 import os
 import sys
 from datetime import datetime, timedelta
@@ -109,6 +110,29 @@ def set_route_filter(page, target_routes: set) -> None:
     page.screenshot(path=os.path.join(OUTPUT_DIR, "debug_route_dropdown.png"))
     with open(os.path.join(OUTPUT_DIR, "debug_route_dropdown.html"), "w", encoding="utf-8") as f:
         f.write(page.content())
+
+    # Además, imprimimos el diagnóstico por stdout -- los artifacts no
+    # siempre son accesibles para inspeccionar, pero el log del job sí.
+    diag = page.evaluate(
+        """() => {
+            const q = (sel) => Array.from(document.querySelectorAll(sel));
+            const rutaEls = q('[id*="ddlCheckRutaHu"]');
+            return {
+                checkboxes_con_selector_list: q('input[type="checkbox"][id*="ddlCheckRutaHu_list"]').length,
+                checkboxes_cualquiera: q('input[type="checkbox"][id*="ddlCheckRutaHu"]').length,
+                elementos_con_ese_id: rutaEls.slice(0, 30).map(el => ({
+                    id: el.id, tag: el.tagName, cls: el.className,
+                })),
+            };
+        }"""
+    )
+    print("DIAG dropdown de rutas:", json.dumps(diag, ensure_ascii=False), file=sys.stderr)
+    for el in diag["elementos_con_ese_id"][:10]:
+        try:
+            outer = page.locator(f'#{el["id"]}').first.evaluate("e => e.outerHTML")
+        except Exception as exc:  # noqa: BLE001 -- esto es solo diagnóstico
+            outer = f"<no se pudo leer: {exc}>"
+        print(f"DIAG outerHTML de #{el['id']}:\n{outer[:2000]}", file=sys.stderr)
 
     checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
     count = checkboxes.count()
