@@ -109,7 +109,11 @@ def set_route_filter(page, target_routes: set) -> None:
     'Ruta', destildando cualquier otra que haya quedado de una sesión
     anterior. No depende de qué esté guardado server-side."""
     page.click(SEL_ROUTE_DROPDOWN_LABEL)
-    page.wait_for_selector(SEL_ROUTE_CHECKBOXES, timeout=10000)
+    # Los checkboxes de esta lista están estilizados con un indicador visual
+    # aparte (el <input> nativo no cuenta como "visible" para Playwright),
+    # así que alcanza con que estén en el DOM -- no con que pasen el
+    # chequeo de visibilidad por defecto.
+    page.wait_for_selector(SEL_ROUTE_CHECKBOXES, timeout=10000, state="attached")
 
     checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
     count = checkboxes.count()
@@ -124,7 +128,7 @@ def set_route_filter(page, target_routes: set) -> None:
         if should_check:
             matched += 1
         if should_check != cb.is_checked():
-            cb.click()  # dispara el onclick de la tabla que actualiza el resumen
+            cb.click(force=True)  # dispara el onclick de la tabla que actualiza el resumen
 
     if matched != len(target_routes):
         print(
