@@ -210,35 +210,40 @@ def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
     page.wait_for_selector(SEL_GRID, timeout=20000)
 
 
-def _wait_for_page_stable(page, next_page: int, max_polls: int = 30, poll_ms: int = 250) -> None:
+def _wait_for_page_stable(page, next_page: int, max_polls: int = 40, poll_ms: int = 300) -> None:
     """El postback del grid actualiza el pager y las filas en pasos
     separados -- esperar solo a que el pager muestre la página nueva no
     alcanza, a veces se lee una mezcla a medio re-renderizar (filas de
     la página anterior conviviendo con las de la nueva). Sondeamos hasta
-    que el pager marque la página correcta Y el contenido del grid deje
-    de cambiar entre dos lecturas seguidas."""
-    prev_len = None
+    que el pager marque la página correcta Y el contenido de las filas
+    (cantidad + texto de la primera y última) deje de cambiar en tres
+    lecturas seguidas. Un fingerprint basado en innerHTML.length no
+    alcanzaba -- dos renders distintos pueden coincidir en longitud."""
+    prev_fp = None
     stable_reads = 0
     for _ in range(max_polls):
         page.wait_for_timeout(poll_ms)
         state = page.evaluate(
             """({pageNum, gridSel}) => {
-                const row = document.querySelector('tr.C1PagerRow');
-                const pagerOk = row
-                    ? Array.from(row.querySelectorAll('td > span')).some(s => s.textContent.trim() === String(pageNum))
+                const pager = document.querySelector('tr.C1PagerRow');
+                const pagerOk = pager
+                    ? Array.from(pager.querySelectorAll('td > span')).some(s => s.textContent.trim() === String(pageNum))
                     : false;
                 const grid = document.querySelector(gridSel);
-                return {pagerOk, gridLen: grid ? grid.innerHTML.length : -1};
+                const dataRows = grid ? Array.from(grid.querySelectorAll('tr.C1Row')) : [];
+                const first = dataRows[0] ? dataRows[0].textContent.trim().slice(0, 80) : '';
+                const last = dataRows.length ? dataRows[dataRows.length - 1].textContent.trim().slice(0, 80) : '';
+                return {pagerOk, fp: dataRows.length + '|' + first + '|' + last};
             }""",
             {"pageNum": next_page, "gridSel": SEL_GRID},
         )
-        if state["pagerOk"] and state["gridLen"] == prev_len:
+        if state["pagerOk"] and state["fp"] == prev_fp and state["fp"] != "0||":
             stable_reads += 1
-            if stable_reads >= 2:
+            if stable_reads >= 3:
                 return
         else:
             stable_reads = 0
-        prev_len = state["gridLen"]
+        prev_fp = state["fp"]
 
 
 def collect_all_pages(page) -> list[dict]:
