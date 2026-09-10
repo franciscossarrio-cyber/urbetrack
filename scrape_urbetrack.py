@@ -38,7 +38,6 @@ SEL_DESDE = "#ctl00_ctl00_ContentPlaceHolder1_TitleFilterPanel_FilterPanel_Conte
 SEL_HASTA = "#ctl00_ctl00_ContentPlaceHolder1_TitleFilterPanel_FilterPanel_ContentFiltros_dtHasta_dtHasta_textBox"
 SEL_SEARCH_BTN = "#ctl00_ctl00_ContentPlaceHolder1_TitleFilterPanel_FilterPanel_buttonSearch"
 SEL_GRID = "#ctl00_ctl00_ContentPlaceHolder1_grid"
-SEL_USER_LABEL = "#ctl00_ctl00_lblUserName"  # aparece solo si el login fue exitoso
 
 # Dropdown de checkboxes de "Ruta" -- selectores por atributo parcial
 # porque el ID completo es larguísimo y repetitivo (ASP.NET WebForms).
@@ -72,26 +71,23 @@ def login(page, username: str, password: str) -> None:
     # puede tardar varios segundos) -> recién ahí __doPostBack('btLogin','')
     # hace un form.submit() real (navegación de página completa, no AJAX).
     # Por eso hay que esperar la NAVEGACIÓN explícitamente, no solo que la
-    # red esté "quieta" en la página actual -- si no, Playwright puede
-    # considerar la página de login ya "quieta" y devolver el control
-    # antes de que la navegación real siquiera arranque.
+    # red esté "quieta" en la página actual.
     with page.expect_navigation(timeout=60000):
         page.click(SEL_LOGIN_BTN)
 
     page.wait_for_load_state("networkidle", timeout=45000)
 
-    # Esperar a que aparezca el layout post-login (label de usuario en
-    # la barra superior) en vez de asumir una navegación con URL fija.
-    try:
-        page.wait_for_selector(SEL_USER_LABEL, timeout=45000)
-    except Exception:
-        # Si no apareció, probablemente el login falló (credenciales,
-        # captcha con score bajo, etc.) - dejamos que el caller falle
-        # con un mensaje claro.
+    # No chequeamos que aparezca el label de usuario -- vive dentro de un
+    # dropdown de Bootstrap y Playwright puede considerarlo "no visible"
+    # por CSS aunque el contenido ya esté en el DOM (esto causó falsos
+    # negativos reiterados). En cambio, chequeamos que DESAPAREZCA el
+    # formulario de login -- señal mucho más confiable de que navegamos
+    # a otra página.
+    if page.query_selector(SEL_USER) is not None:
         raise RuntimeError(
-            "No se detectó el login exitoso (no apareció el label de "
-            "usuario). Revisar screenshot/HTML de la página en ese "
-            "momento para diagnosticar."
+            "Seguimos viendo el formulario de login tras el submit -- "
+            "el login probablemente falló (credenciales, recaptcha con "
+            "score bajo, etc.). Revisar screenshot/HTML para diagnosticar."
         )
 
 
