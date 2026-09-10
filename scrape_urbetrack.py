@@ -230,7 +230,24 @@ def collect_all_pages(page) -> list[dict]:
         link = page.locator(f'tr.C1PagerRow a.C1Link[title="{next_page}"]').first
         with page.expect_response(lambda r: REPORT_PATH in r.url, timeout=30000):
             link.click()
-        page.wait_for_timeout(1000)
+
+        # wait_for_timeout fijo no alcanza: a veces la respuesta ya llegó
+        # pero el postback todavía no re-renderizó el grid, y leíamos la
+        # página anterior de nuevo (filas duplicadas) mientras la página
+        # real quedaba sin leer -- el total daba bien de casualidad pero
+        # el contenido por día salía mezclado entre corridas. Esperamos a
+        # que el indicador de página actual (el <span>, no el <a>, del
+        # pager) muestre el número al que acabamos de saltar.
+        page.wait_for_function(
+            """(pageNum) => {
+                const row = document.querySelector('tr.C1PagerRow');
+                if (!row) return false;
+                return Array.from(row.querySelectorAll('td > span'))
+                    .some(s => s.textContent.trim() === String(pageNum));
+            }""",
+            arg=next_page,
+            timeout=20000,
+        )
         page.wait_for_selector(SEL_GRID, timeout=20000)
 
         visited.add(next_page)
