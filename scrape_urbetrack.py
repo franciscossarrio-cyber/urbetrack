@@ -209,6 +209,24 @@ def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
     page.wait_for_timeout(1500)
     page.wait_for_selector(SEL_GRID, timeout=20000)
 
+    # DIAG temporal: el total de filas parseadas quedó pegado en 50 en
+    # tres corridas distintas con filtros de ruta distintos -- huele a
+    # un límite de paginación del grid (C1WebGrid) que se está truncando
+    # en silencio. Buscamos cualquier control de paginación/page-size.
+    diag = page.evaluate(
+        """() => {
+            const q = (sel) => Array.from(document.querySelectorAll(sel));
+            const pageish = q('[id*="age" i], [class*="age" i], [id*="Pager" i]')
+                .map(el => ({id: el.id, tag: el.tagName, cls: el.className, text: (el.innerText||'').trim().slice(0,80)}))
+                .filter(el => el.id || el.text);
+            return {
+                total_tr_C1Row: document.querySelectorAll('tr.C1Row').length,
+                pageish: pageish.slice(0, 25),
+            };
+        }"""
+    )
+    print(f"DIAG paginación: {json.dumps(diag, ensure_ascii=False)}", file=sys.stderr)
+
 
 def parse_grid(page) -> list[dict]:
     grid_html = page.inner_html(SEL_GRID)
