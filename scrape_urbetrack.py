@@ -379,6 +379,12 @@ def main():
 
         browser.close()
 
+    # El grid no siempre devuelve las filas en el mismo orden entre
+    # corridas (recorrer las páginas del pager no garantiza un orden
+    # estable) -- eso generaba diffs de git en filas que en realidad no
+    # cambiaron. Se ordena por fecha y código para un resultado estable.
+    rows.sort(key=lambda r: (r.get("Fecha", ""), r.get("Código", "")))
+
     print(f"Filas parseadas: {len(rows)}")
 
     if is_backfill:
