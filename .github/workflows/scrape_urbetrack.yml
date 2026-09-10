@@ -5,7 +5,16 @@ on:
     # 07:00 hora Argentina (UTC-3) = 10:00 UTC. Ajustar si hace falta
     # otro horario -- recordá que GitHub usa siempre UTC en el cron.
     - cron: "0 10 * * *"
-  workflow_dispatch: {}  # permite correrlo a mano desde la pestaña "Actions"
+  workflow_dispatch:  # permite correrlo a mano desde la pestaña "Actions"
+    inputs:
+      desde:
+        description: "Backfill -- fecha desde (YYYY-MM-DD). Dejar vacío para el modo normal (trae el día de ayer)."
+        required: false
+        type: string
+      hasta:
+        description: "Backfill -- fecha hasta (YYYY-MM-DD). Dejar vacío para el modo normal (trae el día de ayer)."
+        required: false
+        type: string
 
 jobs:
   scrape:
@@ -32,6 +41,8 @@ jobs:
         env:
           URBETRACK_USER: ${{ secrets.URBETRACK_USER }}
           URBETRACK_PASS: ${{ secrets.URBETRACK_PASS }}
+          BACKFILL_DESDE: ${{ inputs.desde }}
+          BACKFILL_HASTA: ${{ inputs.hasta }}
         run: python scrape_urbetrack.py
 
       - name: Subir evidencia de error (si falló)
@@ -46,9 +57,17 @@ jobs:
 
       - name: Commitear el CSV y el snapshot de docs/
         if: success()
+        env:
+          BACKFILL_DESDE: ${{ inputs.desde }}
+          BACKFILL_HASTA: ${{ inputs.hasta }}
         run: |
           git config user.name "urbetrack-bot"
           git config user.email "actions@github.com"
           git add data/*.csv docs/latest.csv docs/latest.json
-          git diff --staged --quiet || git commit -m "Recorridos $(date -d yesterday +%Y-%m-%d)"
+          if [ -n "$BACKFILL_DESDE" ]; then
+            MSG="Backfill recorridos $BACKFILL_DESDE a $BACKFILL_HASTA"
+          else
+            MSG="Recorridos $(date -d yesterday +%Y-%m-%d)"
+          fi
+          git diff --staged --quiet || git commit -m "$MSG"
           git push

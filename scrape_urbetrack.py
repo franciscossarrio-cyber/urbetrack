@@ -13,10 +13,17 @@ Variables de entorno requeridas:
     URBETRACK_USER
     URBETRACK_PASS
 
+Variables de entorno opcionales (backfill de un rango en vez de "ayer"):
+    BACKFILL_DESDE=2026-09-01
+    BACKFILL_HASTA=2026-09-09
+
 Salida:
-    data/recorridos_YYYY-MM-DD.csv  (archivo histórico, fecha = ayer)
+    data/recorridos_YYYY-MM-DD.csv  (un archivo por día -- en modo
+        normal es el de ayer; en backfill, uno por cada día del rango
+        que tuvo recorridos)
     docs/latest.csv, docs/latest.json  (snapshot estable para consumir
-        desde afuera, ej. un dashboard -- se pisan en cada corrida)
+        desde afuera, ej. un dashboard -- solo se actualiza en modo
+        normal, no durante un backfill)
 """
 
 import csv
@@ -67,6 +74,17 @@ def get_yesterday_range():
     yesterday = datetime.now() - timedelta(days=1)
     date_str = yesterday.strftime("%d/%m/%Y")
     return f"{date_str} 00:00:00", f"{date_str} 23:59:59", yesterday.strftime("%Y-%m-%d")
+
+
+def get_backfill_range(desde_iso: str, hasta_iso: str):
+    """Convierte BACKFILL_DESDE/BACKFILL_HASTA (YYYY-MM-DD) al formato
+    DD/MM/YYYY que espera el filtro de Urbetrack."""
+    desde = datetime.strptime(desde_iso, "%Y-%m-%d")
+    hasta = datetime.strptime(hasta_iso, "%Y-%m-%d")
+    return (
+        f"{desde.strftime('%d/%m/%Y')} 00:00:00",
+        f"{hasta.strftime('%d/%m/%Y')} 23:59:59",
+    )
 
 
 def login(page, username: str, password: str) -> None:
@@ -225,6 +243,26 @@ def write_csv(rows: list[dict], date_label: str) -> str:
     return path
 
 
+def write_csv_by_day(rows: list[dict]) -> list[str]:
+    """Para un backfill de varios días: separa las filas por su columna
+    'Fecha' (formato "DD/MM/YYYY HH:MM") y escribe un CSV por día, igual
+    que produciría la corrida diaria normal para cada una de esas fechas."""
+    by_day: dict[str, list[dict]] = {}
+    for row in rows:
+        fecha_cell = row.get("Fecha", "")
+        date_part = fecha_cell.split(" ")[0]  # "DD/MM/YYYY"
+        try:
+            date_label = datetime.strptime(date_part, "%d/%m/%Y").strftime("%Y-%m-%d")
+        except ValueError:
+            date_label = "sin_fecha"
+        by_day.setdefault(date_label, []).append(row)
+
+    paths = []
+    for date_label, day_rows in sorted(by_day.items()):
+        paths.append(write_csv(day_rows, date_label))
+    return paths
+
+
 def write_latest_snapshot(rows: list[dict], date_label: str) -> None:
     """Pisa docs/latest.csv y docs/latest.json con la corrida de hoy --
     URL estable para que algo externo (ej. un dashboard) los consuma sin
@@ -263,7 +301,14 @@ def main():
         print("Faltan las variables de entorno URBETRACK_USER / URBETRACK_PASS.", file=sys.stderr)
         sys.exit(1)
 
-    desde, hasta, date_label = get_yesterday_range()
+    backfill_desde = os.environ.get("BACKFILL_DESDE")
+    backfill_hasta = os.environ.get("BACKFILL_HASTA")
+    is_backfill = bool(backfill_desde and backfill_hasta)
+
+    if is_backfill:
+        desde, hasta = get_backfill_range(backfill_desde, backfill_hasta)
+    else:
+        desde, hasta, _ = get_yesterday_range()
     print(f"Buscando recorridos de: {desde} a {hasta}")
 
     with sync_playwright() as p:
@@ -289,11 +334,17 @@ def main():
 
         browser.close()
 
-    path = write_csv(rows, date_label)
-    write_latest_snapshot(rows, date_label)
     print(f"Filas parseadas: {len(rows)}")
-    print(f"CSV escrito en: {path}")
-    print(f"Snapshot 'latest' actualizado en: {PAGES_DIR}/")
+
+    if is_backfill:
+        paths = write_csv_by_day(rows)
+        print(f"CSVs escritos: {', '.join(paths) if paths else '(ninguno, sin resultados en el rango)'}")
+    else:
+        _, _, date_label = get_yesterday_range()
+        path = write_csv(rows, date_label)
+        write_latest_snapshot(rows, date_label)
+        print(f"CSV escrito en: {path}")
+        print(f"Snapshot 'latest' actualizado en: {PAGES_DIR}/")
 
 
 if __name__ == "__main__":
