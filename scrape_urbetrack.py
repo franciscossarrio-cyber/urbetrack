@@ -134,6 +134,22 @@ def set_route_filter(page, target_routes: set) -> None:
             outer = f"<no se pudo leer: {exc}>"
         print(f"DIAG outerHTML de #{el['id']}:\n{outer[:2000]}", file=sys.stderr)
 
+    # El panel de Ruta puede depender de un filtro en cascada (Distrito).
+    # Buscamos cualquier control relacionado con "Distrito" para ver si
+    # está sin seleccionar -- lo cual explicaría que Ruta quede vacío.
+    distrito_diag = page.evaluate(
+        """() => {
+            const q = (sel) => Array.from(document.querySelectorAll(sel));
+            const els = q('[id*="Distrito" i]');
+            return els.slice(0, 15).map(el => ({
+                id: el.id, tag: el.tagName,
+                value: el.value !== undefined ? el.value : null,
+                text: (el.innerText || el.textContent || '').trim().slice(0, 200),
+            }));
+        }"""
+    )
+    print("DIAG elementos de Distrito:", json.dumps(distrito_diag, ensure_ascii=False), file=sys.stderr)
+
     checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
     count = checkboxes.count()
 
