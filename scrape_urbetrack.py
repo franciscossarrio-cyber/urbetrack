@@ -14,13 +14,16 @@ Variables de entorno requeridas:
     URBETRACK_PASS
 
 Salida:
-    data/recorridos_YYYY-MM-DD.csv  (fecha = ayer, la que se consultó)
+    data/recorridos_YYYY-MM-DD.csv  (archivo histórico, fecha = ayer)
+    docs/latest.csv, docs/latest.json  (snapshot estable para consumir
+        desde afuera, ej. un dashboard -- se pisan en cada corrida)
 """
 
 import csv
+import json
 import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from bs4 import BeautifulSoup
 from playwright.sync_api import sync_playwright
@@ -57,6 +60,7 @@ TARGET_ROUTES = {
 }
 
 OUTPUT_DIR = "data"
+PAGES_DIR = "docs"
 
 
 def get_yesterday_range():
@@ -118,7 +122,7 @@ def set_route_filter(page, target_routes: set) -> None:
     checkboxes = page.locator(SEL_ROUTE_CHECKBOXES)
     count = checkboxes.count()
 
-    matched = 0
+    found_routes = set()
     for i in range(count):
         cb = checkboxes.nth(i)
         cb_id = cb.get_attribute("id")
@@ -126,7 +130,7 @@ def set_route_filter(page, target_routes: set) -> None:
 
         should_check = label_text in target_routes
         if should_check:
-            matched += 1
+            found_routes.add(label_text)
         if should_check != cb.is_checked():
             # El <input> nativo tiene tamaño/posición que Playwright no
             # puede usar para calcular un punto de click (ni con
@@ -135,11 +139,12 @@ def set_route_filter(page, target_routes: set) -> None:
             # click nativo por JS, que sí dispara el onclick igual.
             cb.evaluate("el => el.click()")
 
-    if matched != len(target_routes):
+    missing_routes = target_routes - found_routes
+    if missing_routes:
         print(
-            f"ADVERTENCIA: se esperaban {len(target_routes)} rutas y solo "
-            f"se encontraron {matched} en el listado. Revisar si algún "
-            f"código de ruta cambió o no existe más.",
+            f"ADVERTENCIA: {len(missing_routes)} ruta(s) del filtro no "
+            f"aparecen en el listado de Urbetrack (código cambiado o ruta "
+            f"dada de baja): {sorted(missing_routes)}",
             file=sys.stderr,
         )
 
@@ -220,6 +225,36 @@ def write_csv(rows: list[dict], date_label: str) -> str:
     return path
 
 
+def write_latest_snapshot(rows: list[dict], date_label: str) -> None:
+    """Pisa docs/latest.csv y docs/latest.json con la corrida de hoy --
+    URL estable para que algo externo (ej. un dashboard) los consuma sin
+    tener que calcular la fecha de ayer por su cuenta. Se sirve por
+    GitHub Pages apuntando a la carpeta docs/ en Settings > Pages."""
+    os.makedirs(PAGES_DIR, exist_ok=True)
+
+    csv_path = os.path.join(PAGES_DIR, "latest.csv")
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
+        if rows:
+            writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(rows)
+        else:
+            f.write("Sin resultados para el rango consultado.\n")
+
+    json_path = os.path.join(PAGES_DIR, "latest.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "fecha": date_label,
+                "generado": datetime.now(timezone.utc).isoformat(),
+                "recorridos": rows,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+
+
 def main():
     username = os.environ.get("URBETRACK_USER")
     password = os.environ.get("URBETRACK_PASS")
@@ -255,8 +290,10 @@ def main():
         browser.close()
 
     path = write_csv(rows, date_label)
+    write_latest_snapshot(rows, date_label)
     print(f"Filas parseadas: {len(rows)}")
     print(f"CSV escrito en: {path}")
+    print(f"Snapshot 'latest' actualizado en: {PAGES_DIR}/")
 
 
 if __name__ == "__main__":
