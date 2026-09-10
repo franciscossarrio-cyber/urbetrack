@@ -58,10 +58,12 @@ SEL_ROUTE_DROPDOWN_LABEL = 'span[id*="ddlCheckRutaHu"][id$="_label"]'
 SEL_ROUTE_CHECKBOXES = 'input[type="checkbox"][id*="ddlCheckRutaHu_list"]'
 
 # Las 16 rutas finales a usar en el filtro, siempre exactas -- no
-# dependemos de lo que haya quedado tildado en la sesión.
+# dependemos de lo que haya quedado tildado en la sesión. "1037" es el
+# label real en Urbetrack para lo que era "1RECDOM1037F6" -- confirmado
+# a mano en la UI, el código se acortó ahí y en ningún otro.
 TARGET_ROUTES = {
     "1RECDOM1032F6", "1RECDOM1033F3", "1RECDOM1034F3", "1RECDOM1035F3",
-    "1RECDOM1036F6", "1RECDOM1037F6", "1RECDOM1038F6", "1RECDOM1039F3",
+    "1RECDOM1036F6", "1037", "1RECDOM1038F6", "1RECDOM1039F3",
     "1RECDON2031F3", "1RECDON2032F6", "1RECDON2033F3", "1RECDON2034F3",
     "1RECDON2035F3", "1RECDON2037F6", "1RECDON2039F6", "1RECDON2040F6",
 }
