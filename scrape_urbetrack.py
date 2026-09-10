@@ -209,16 +209,34 @@ def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
     page.wait_for_timeout(1500)
     page.wait_for_selector(SEL_GRID, timeout=20000)
 
-    # DIAG temporal: confirmado que hay paginación (C1PagerRow, "108
-    # resultados" en 3 páginas) y solo leíamos la página 1. Necesitamos
-    # el HTML exacto del pager para saber cómo clickear la página 2/3.
-    pager_html = page.evaluate(
-        """() => {
-            const row = document.querySelector('tr.C1PagerRow');
-            return row ? row.outerHTML : null;
-        }"""
-    )
-    print(f"DIAG pager outerHTML: {pager_html}", file=sys.stderr)
+
+def collect_all_pages(page) -> list[dict]:
+    """El grid pagina de a 50 filas (C1PagerRow, con links "2", "3", ...
+    que disparan __doPostBack). Si no se recorren todas las páginas, un
+    rango con más de 50 resultados se trunca en silencio -- pasó con el
+    backfill de septiembre (108 resultados reales, solo se leían 50)."""
+    all_rows = list(parse_grid(page))
+    visited = {1}
+
+    while True:
+        link_titles = page.eval_on_selector_all(
+            "tr.C1PagerRow a.C1Link", "els => els.map(e => e.getAttribute('title'))"
+        )
+        unvisited = {int(t) for t in link_titles if t and t.isdigit()} - visited
+        if not unvisited:
+            break
+
+        next_page = min(unvisited)
+        link = page.locator(f'tr.C1PagerRow a.C1Link[title="{next_page}"]').first
+        with page.expect_response(lambda r: REPORT_PATH in r.url, timeout=30000):
+            link.click()
+        page.wait_for_timeout(1000)
+        page.wait_for_selector(SEL_GRID, timeout=20000)
+
+        visited.add(next_page)
+        all_rows.extend(parse_grid(page))
+
+    return all_rows
 
 
 def parse_grid(page) -> list[dict]:
@@ -346,7 +364,7 @@ def main():
         try:
             login(page, username, password)
             apply_date_filter_and_search(page, desde, hasta)
-            rows = parse_grid(page)
+            rows = collect_all_pages(page)
         except Exception as e:
             # Guardamos evidencia para poder diagnosticar en el log del
             # workflow si algo falla (ej. cambió el HTML, el captcha
