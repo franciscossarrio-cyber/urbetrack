@@ -1,0 +1,52 @@
+name: Scrape Urbetrack - Reporte de recorridos
+
+on:
+  schedule:
+    # 07:00 hora Argentina (UTC-3) = 10:00 UTC. Ajustar si hace falta
+    # otro horario -- recordá que GitHub usa siempre UTC en el cron.
+    - cron: "0 10 * * *"
+  workflow_dispatch: {}  # permite correrlo a mano desde la pestaña "Actions"
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Instalar dependencias
+        run: |
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Correr el scraper
+        env:
+          URBETRACK_USER: ${{ secrets.URBETRACK_USER }}
+          URBETRACK_PASS: ${{ secrets.URBETRACK_PASS }}
+        run: python scrape_urbetrack.py
+
+      - name: Subir evidencia de error (si falló)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: error-evidence
+          path: |
+            data/error_screenshot.png
+            data/error_page.html
+          if-no-files-found: ignore
+
+      - name: Commitear el CSV resultante
+        if: success()
+        run: |
+          git config user.name "urbetrack-bot"
+          git config user.email "actions@github.com"
+          git add data/*.csv
+          git diff --staged --quiet || git commit -m "Recorridos $(date -d yesterday +%Y-%m-%d)"
+          git push
