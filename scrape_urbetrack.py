@@ -26,6 +26,9 @@ Salida:
     docs/historico.json  (junta TODOS los data/recorridos_*.csv que
         haya en el repo en un solo array -- se regenera siempre, tanto
         en modo normal como en backfill)
+    docs/cuadras.json  (el seed fijo de agosto 2026 + todo lo de
+        data/recorridos_*.csv, en el esquema resumido que consume
+        docs/index.html -- dashboard de cumplimiento de cuadras)
 """
 
 import csv
@@ -73,6 +76,13 @@ TARGET_ROUTES = {
 
 OUTPUT_DIR = "data"
 PAGES_DIR = "docs"
+
+# Datos de agosto 2026 ya extraídos a mano (dos reportes de cumplimiento
+# por turno) antes de que existiera este pipeline -- no se pueden
+# volver a scrapear (quedaron fuera del rango que el sitio expone), así
+# que se usan como semilla fija del dashboard, concatenados con todo lo
+# que el pipeline sí trae en vivo desde septiembre en adelante.
+CUADRAS_SEED_PATH = os.path.join(OUTPUT_DIR, "cuadras_agosto_seed.json")
 
 
 def get_yesterday_range():
@@ -484,6 +494,72 @@ def write_historico_snapshot() -> str:
     return path
 
 
+def _row_to_cuadras_entry(row: dict) -> dict | None:
+    """Convierte una fila cruda del CSV (41 columnas del modo Extendido)
+    al esquema resumido que espera el dashboard de cuadras (docs/index.html):
+    {date, turno, recorrido, camion, supervisor, total, hechas, sin, pct}.
+    Devuelve None si la fila no tiene los datos de cuadras (ej. quedó de
+    antes del fix de "Extendido")."""
+    try:
+        date_part = row["Fecha"].split(" ")[0]
+        date_iso = datetime.strptime(date_part, "%d/%m/%Y").strftime("%Y-%m-%d")
+        total = int(row["Cuadras"])
+        hechas = int(row["Cuadras operadas"])
+        sin = int(row["Cuadras sin operar"])
+        pct = float(row["Efectivo cuadras"].replace("%", "").replace(",", "."))
+    except (KeyError, ValueError):
+        return None
+
+    # El "Código" del grid usa el formato viejo con un "1" adelante
+    # (ej. "1RECDOM1032F6") -- se saca para matchear el formato del
+    # seed de agosto ("RECDOM1032F6"), que es el que usa el dashboard.
+    recorrido = row.get("Código", "")
+    if recorrido.startswith("1REC"):
+        recorrido = recorrido[1:]
+
+    return {
+        "date": date_iso,
+        "turno": row.get("Turno", ""),
+        "recorrido": recorrido,
+        "camion": row.get("Camión", ""),
+        "supervisor": row.get("Supervisor", ""),
+        "total": total,
+        "hechas": hechas,
+        "sin": sin,
+        "pct": pct,
+    }
+
+
+def write_cuadras_snapshot() -> str:
+    """docs/cuadras.json: el seed fijo de agosto 2026 + todo lo que haya
+    en data/recorridos_*.csv (septiembre en adelante), en el esquema
+    resumido que lee docs/index.html vía fetch(). Se regenera siempre,
+    igual que write_historico_snapshot()."""
+    os.makedirs(PAGES_DIR, exist_ok=True)
+    path = os.path.join(PAGES_DIR, "cuadras.json")
+
+    entries = []
+    if os.path.exists(CUADRAS_SEED_PATH):
+        with open(CUADRAS_SEED_PATH, encoding="utf-8") as f:
+            entries.extend(json.load(f))
+
+    for csv_path in sorted(glob.glob(os.path.join(OUTPUT_DIR, "recorridos_*.csv"))):
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            if not reader.fieldnames or "Fecha" not in reader.fieldnames:
+                continue
+            for row in reader:
+                entry = _row_to_cuadras_entry(row)
+                if entry is not None:
+                    entries.append(entry)
+
+    entries.sort(key=lambda e: (e["date"], e["recorrido"]))
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(entries, f, ensure_ascii=False, indent=2)
+    return path
+
+
 def main():
     username = os.environ.get("URBETRACK_USER")
     password = os.environ.get("URBETRACK_PASS")
@@ -555,6 +631,9 @@ def main():
 
     historico_path = write_historico_snapshot()
     print(f"Histórico actualizado en: {historico_path}")
+
+    cuadras_path = write_cuadras_snapshot()
+    print(f"Dashboard de cuadras actualizado en: {cuadras_path}")
 
 
 if __name__ == "__main__":
