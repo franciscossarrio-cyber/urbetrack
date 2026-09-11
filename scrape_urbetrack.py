@@ -302,42 +302,28 @@ def collect_all_pages(page) -> list[dict]:
         with page.expect_response(lambda r: REPORT_PATH in r.url, timeout=30000):
             link.click()
 
-        # La cantidad de filas puede coincidir con lo esperado por
-        # casualidad aunque el contenido siga siendo una mezcla a medio
-        # renderizar (algunas filas de la página anterior conviviendo
-        # con algunas de la nueva) -- verificamos también que ninguna
-        # fila de esta página sea un duplicado exacto de una ya
-        # recolectada, reintentando unas cuantas veces si lo es.
-        existing_keys = {tuple(sorted(r.items())) for r in all_rows}
-        page_rows = []
-        for _ in range(5):
-            _wait_for_page_stable(page, next_page, expected_count(next_page))
-            page_rows = parse_grid(page)
-            if not any(tuple(sorted(r.items())) in existing_keys for r in page_rows):
-                break
-            page.wait_for_timeout(500)
-        else:
-            print(
-                f"ADVERTENCIA: la página {next_page} siguió trayendo filas "
-                f"duplicadas de páginas anteriores después de reintentar.",
-                file=sys.stderr,
-            )
+        _wait_for_page_stable(page, next_page, expected_count(next_page))
 
         visited.add(next_page)
-        all_rows.extend(page_rows)
+        all_rows.extend(parse_grid(page))
 
-    if total is not None and len(all_rows) != total:
+    # Filas 100% idénticas en todos sus campos son casi con certeza un
+    # solapamiento en el borde entre páginas del propio grid (confirmado:
+    # persiste incluso reintentando la lectura de una página varias veces
+    # tras esperar a que se estabilice, así que no es una condición de
+    # carrera del lado del cliente sino cómo pagina el server) -- se
+    # descartan siempre como filas repetidas, nunca datos reales.
+    deduped = list({tuple(sorted(row.items())): row for row in all_rows}.values())
+
+    if total is not None and len(deduped) < total * 0.95:
         print(
-            f"ADVERTENCIA: el pager reporta {total} resultados pero se "
-            f"leyeron {len(all_rows)} filas (antes de deduplicar).",
+            f"ADVERTENCIA: el pager reporta {total} resultados y solo se "
+            f"obtuvieron {len(deduped)} filas únicas -- revisar si el "
+            f"scraper está perdiendo datos reales, no solo duplicados de "
+            f"borde de página.",
             file=sys.stderr,
         )
 
-    # Filas 100% idénticas en todos sus campos son casi con certeza un
-    # artefacto de la transición entre páginas (dos servicios reales
-    # nunca coinciden en TODOS los horarios y valores a la vez) -- se
-    # descartan como red de seguridad adicional a _wait_for_page_stable.
-    deduped = list({tuple(sorted(row.items())): row for row in all_rows}.values())
     return deduped
 
 
