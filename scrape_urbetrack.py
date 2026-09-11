@@ -194,15 +194,46 @@ def set_route_filter(page, target_routes: set) -> None:
     page.wait_for_timeout(200)
 
 
+def set_extendido_filter(page) -> None:
+    """El radio "Extendido" (vs. Reducido/Normal) agrega columnas al
+    grid -- entre ellas la cantidad real de cuadras, no solo el
+    porcentaje "Efectivo cuadras". Sin esto el CSV queda incompleto."""
+    result = page.evaluate(
+        """() => {
+            const labels = Array.from(document.querySelectorAll('label'));
+            const target = labels.find(l => l.textContent.trim() === 'Extendido');
+            if (!target) return {found: false};
+            let radio = target.getAttribute('for')
+                ? document.getElementById(target.getAttribute('for'))
+                : target.querySelector('input[type="radio"]');
+            if (!radio) {
+                const sibling = target.previousElementSibling;
+                if (sibling && sibling.matches('input[type="radio"]')) radio = sibling;
+            }
+            if (!radio) return {found: false, labelHtml: target.outerHTML.slice(0, 200)};
+            radio.click();
+            return {found: true, id: radio.id, checked: radio.checked};
+        }"""
+    )
+    print(f"DIAG radio Extendido: {json.dumps(result, ensure_ascii=False)}", file=sys.stderr)
+    if not result.get("found"):
+        print(
+            "ADVERTENCIA: no se encontró/clickeó el radio 'Extendido' -- "
+            "el CSV puede quedar sin la columna de cuadras reales.",
+            file=sys.stderr,
+        )
+
+
 def setup_filters(page) -> None:
-    """Navega al reporte y deja Distrito/Ruta tildados -- se llama una
-    sola vez por sesión. search_range() se puede llamar después las
-    veces que hagan falta, reusando este mismo estado de filtros."""
+    """Navega al reporte y deja Distrito/Ruta/Extendido tildados -- se
+    llama una sola vez por sesión. search_range() se puede llamar
+    después las veces que hagan falta, reusando este mismo estado."""
     page.goto(BASE_URL + REPORT_PATH, wait_until="networkidle")
     page.wait_for_selector(SEL_DESDE, timeout=20000)
 
     set_distrito_filter(page, TARGET_DISTRITO)
     set_route_filter(page, TARGET_ROUTES)
+    set_extendido_filter(page)
 
 
 def search_range(page, desde: str, hasta: str) -> None:
