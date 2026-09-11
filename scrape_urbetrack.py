@@ -78,15 +78,19 @@ def get_yesterday_range():
     return f"{date_str} 00:00:00", f"{date_str} 23:59:59", yesterday.strftime("%Y-%m-%d")
 
 
-def get_backfill_range(desde_iso: str, hasta_iso: str):
-    """Convierte BACKFILL_DESDE/BACKFILL_HASTA (YYYY-MM-DD) al formato
-    DD/MM/YYYY que espera el filtro de Urbetrack."""
-    desde = datetime.strptime(desde_iso, "%Y-%m-%d")
+def iter_backfill_days(desde_iso: str, hasta_iso: str):
+    """Un backfill se resuelve día por día (nunca de un solo rango de
+    varios días): un solo día casi nunca supera las 50 filas por
+    página del grid, así que nunca dispara la paginación -- que resultó
+    ser la fuente de toda la inconsistencia entre corridas de un
+    backfill multi-día. Es más lento (una búsqueda por día) pero 100%
+    confiable, igual que la corrida diaria normal."""
+    day = datetime.strptime(desde_iso, "%Y-%m-%d")
     hasta = datetime.strptime(hasta_iso, "%Y-%m-%d")
-    return (
-        f"{desde.strftime('%d/%m/%Y')} 00:00:00",
-        f"{hasta.strftime('%d/%m/%Y')} 23:59:59",
-    )
+    while day <= hasta:
+        date_str = day.strftime("%d/%m/%Y")
+        yield f"{date_str} 00:00:00", f"{date_str} 23:59:59", day.strftime("%Y-%m-%d")
+        day += timedelta(days=1)
 
 
 def login(page, username: str, password: str) -> None:
@@ -187,13 +191,18 @@ def set_route_filter(page, target_routes: set) -> None:
     page.wait_for_timeout(200)
 
 
-def apply_date_filter_and_search(page, desde: str, hasta: str) -> None:
+def setup_filters(page) -> None:
+    """Navega al reporte y deja Distrito/Ruta tildados -- se llama una
+    sola vez por sesión. search_range() se puede llamar después las
+    veces que hagan falta, reusando este mismo estado de filtros."""
     page.goto(BASE_URL + REPORT_PATH, wait_until="networkidle")
     page.wait_for_selector(SEL_DESDE, timeout=20000)
 
     set_distrito_filter(page, TARGET_DISTRITO)
     set_route_filter(page, TARGET_ROUTES)
 
+
+def search_range(page, desde: str, hasta: str) -> None:
     # fill() limpia el campo y tipea el valor; dispara los eventos que
     # ASP.NET necesita para tomar el valor en el próximo postback. No
     # tocamos el filtro de tipo de servicio -> Urbetrack conserva lo
@@ -376,26 +385,6 @@ def write_csv(rows: list[dict], date_label: str) -> str:
     return path
 
 
-def write_csv_by_day(rows: list[dict]) -> list[str]:
-    """Para un backfill de varios días: separa las filas por su columna
-    'Fecha' (formato "DD/MM/YYYY HH:MM") y escribe un CSV por día, igual
-    que produciría la corrida diaria normal para cada una de esas fechas."""
-    by_day: dict[str, list[dict]] = {}
-    for row in rows:
-        fecha_cell = row.get("Fecha", "")
-        date_part = fecha_cell.split(" ")[0]  # "DD/MM/YYYY"
-        try:
-            date_label = datetime.strptime(date_part, "%d/%m/%Y").strftime("%Y-%m-%d")
-        except ValueError:
-            date_label = "sin_fecha"
-        by_day.setdefault(date_label, []).append(row)
-
-    paths = []
-    for date_label, day_rows in sorted(by_day.items()):
-        paths.append(write_csv(day_rows, date_label))
-    return paths
-
-
 def write_latest_snapshot(rows: list[dict], date_label: str) -> None:
     """Pisa docs/latest.csv y docs/latest.json con la corrida de hoy --
     URL estable para que algo externo (ej. un dashboard) los consuma sin
@@ -439,10 +428,16 @@ def main():
     is_backfill = bool(backfill_desde and backfill_hasta)
 
     if is_backfill:
-        desde, hasta = get_backfill_range(backfill_desde, backfill_hasta)
+        days = list(iter_backfill_days(backfill_desde, backfill_hasta))
     else:
-        desde, hasta, _ = get_yesterday_range()
-    print(f"Buscando recorridos de: {desde} a {hasta}")
+        days = [get_yesterday_range()]
+
+    def sorted_rows(rows: list[dict]) -> list[dict]:
+        # El grid no siempre devuelve las filas en el mismo orden entre
+        # corridas -- eso generaba diffs de git en filas que en realidad
+        # no cambiaron. Se ordena por fecha y código para un resultado
+        # estable.
+        return sorted(rows, key=lambda r: (r.get("Fecha", ""), r.get("Código", "")))
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -451,12 +446,27 @@ def main():
 
         try:
             login(page, username, password)
-            apply_date_filter_and_search(page, desde, hasta)
-            rows = collect_all_pages(page)
+            setup_filters(page)
+
+            paths = []
+            total_rows = 0
+            for desde, hasta, date_label in days:
+                print(f"Buscando recorridos de: {desde} a {hasta}")
+                search_range(page, desde, hasta)
+                rows = sorted_rows(collect_all_pages(page))
+                total_rows += len(rows)
+
+                if is_backfill:
+                    if rows:
+                        paths.append(write_csv(rows, date_label))
+                else:
+                    paths.append(write_csv(rows, date_label))
+                    write_latest_snapshot(rows, date_label)
         except Exception as e:
             # Guardamos evidencia para poder diagnosticar en el log del
             # workflow si algo falla (ej. cambió el HTML, el captcha
-            # bloqueó, etc.)
+            # bloqueó, etc.) -- lo ya escrito hasta acá (días previos de
+            # un backfill) queda commiteado igual.
             os.makedirs(OUTPUT_DIR, exist_ok=True)
             page.screenshot(path=os.path.join(OUTPUT_DIR, "error_screenshot.png"))
             with open(os.path.join(OUTPUT_DIR, "error_page.html"), "w", encoding="utf-8") as f:
@@ -467,22 +477,11 @@ def main():
 
         browser.close()
 
-    # El grid no siempre devuelve las filas en el mismo orden entre
-    # corridas (recorrer las páginas del pager no garantiza un orden
-    # estable) -- eso generaba diffs de git en filas que en realidad no
-    # cambiaron. Se ordena por fecha y código para un resultado estable.
-    rows.sort(key=lambda r: (r.get("Fecha", ""), r.get("Código", "")))
-
-    print(f"Filas parseadas: {len(rows)}")
-
+    print(f"Filas parseadas: {total_rows}")
     if is_backfill:
-        paths = write_csv_by_day(rows)
         print(f"CSVs escritos: {', '.join(paths) if paths else '(ninguno, sin resultados en el rango)'}")
     else:
-        _, _, date_label = get_yesterday_range()
-        path = write_csv(rows, date_label)
-        write_latest_snapshot(rows, date_label)
-        print(f"CSV escrito en: {path}")
+        print(f"CSV escrito en: {paths[0]}")
         print(f"Snapshot 'latest' actualizado en: {PAGES_DIR}/")
 
 
