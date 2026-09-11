@@ -63,7 +63,7 @@ jobs:
         run: |
           git config user.name "urbetrack-bot"
           git config user.email "actions@github.com"
-          git add data/*.csv docs/latest.csv docs/latest.json
+          git add data/*.csv docs/latest.csv docs/latest.json docs/historico.json
           if [ -n "$BACKFILL_DESDE" ]; then
             MSG="Backfill recorridos $BACKFILL_DESDE a $BACKFILL_HASTA"
           else

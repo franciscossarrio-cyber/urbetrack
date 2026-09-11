@@ -21,12 +21,15 @@ Salida:
     data/recorridos_YYYY-MM-DD.csv  (un archivo por día -- en modo
         normal es el de ayer; en backfill, uno por cada día del rango
         que tuvo recorridos)
-    docs/latest.csv, docs/latest.json  (snapshot estable para consumir
-        desde afuera, ej. un dashboard -- solo se actualiza en modo
-        normal, no durante un backfill)
+    docs/latest.csv, docs/latest.json  (snapshot del último día
+        consultado en modo normal -- no se actualiza durante un backfill)
+    docs/historico.json  (junta TODOS los data/recorridos_*.csv que
+        haya en el repo en un solo array -- se regenera siempre, tanto
+        en modo normal como en backfill)
 """
 
 import csv
+import glob
 import json
 import os
 import sys
@@ -415,6 +418,41 @@ def write_latest_snapshot(rows: list[dict], date_label: str) -> None:
         )
 
 
+def write_historico_snapshot() -> str:
+    """Junta TODOS los data/recorridos_*.csv que haya en el checkout en
+    un solo docs/historico.json -- no solo las filas de esta corrida,
+    para que el archivo completo del repo (histórico + backfills) quede
+    siempre reflejado sin importar qué días tocó la corrida actual. Se
+    regenera en cada corrida, normal o backfill."""
+    os.makedirs(PAGES_DIR, exist_ok=True)
+    path = os.path.join(PAGES_DIR, "historico.json")
+
+    files = sorted(glob.glob(os.path.join(OUTPUT_DIR, "recorridos_*.csv")))
+    all_rows = []
+    for csv_path in files:
+        with open(csv_path, newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            if reader.fieldnames and "Fecha" in reader.fieldnames:
+                all_rows.extend(reader)
+            # si no tiene esa columna es el archivo de "sin resultados
+            # para el rango consultado", no hay filas que sumar
+
+    all_rows.sort(key=lambda r: (r.get("Fecha", ""), r.get("Código", "")))
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "generado": datetime.now(timezone.utc).isoformat(),
+                "dias": len(files),
+                "recorridos": all_rows,
+            },
+            f,
+            ensure_ascii=False,
+            indent=2,
+        )
+    return path
+
+
 def main():
     username = os.environ.get("URBETRACK_USER")
     password = os.environ.get("URBETRACK_PASS")
@@ -483,6 +521,9 @@ def main():
     else:
         print(f"CSV escrito en: {paths[0]}")
         print(f"Snapshot 'latest' actualizado en: {PAGES_DIR}/")
+
+    historico_path = write_historico_snapshot()
+    print(f"Histórico actualizado en: {historico_path}")
 
 
 if __name__ == "__main__":
