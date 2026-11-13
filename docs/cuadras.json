@@ -12989,5 +12989,148 @@
     "hechas": 101,
     "sin": 19,
     "pct": 84.17
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Mañana",
+    "recorrido": "RECDOM1032F6",
+    "camion": "744",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 199,
+    "hechas": 162,
+    "sin": 37,
+    "pct": 81.41
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Mañana",
+    "recorrido": "RECDOM1034F3",
+    "camion": "702",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 192,
+    "hechas": 170,
+    "sin": 22,
+    "pct": 88.54
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Mañana",
+    "recorrido": "RECDOM1035F3",
+    "camion": "706",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 144,
+    "hechas": 99,
+    "sin": 45,
+    "pct": 68.75
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Mañana",
+    "recorrido": "RECDOM1036F6",
+    "camion": "741",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 204,
+    "hechas": 124,
+    "sin": 80,
+    "pct": 60.78
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Mañana",
+    "recorrido": "RECDOM1037F6",
+    "camion": "743",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 236,
+    "hechas": 10,
+    "sin": 226,
+    "pct": 4.24
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Mañana",
+    "recorrido": "RECDOM1038F6",
+    "camion": "740",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 137,
+    "hechas": 69,
+    "sin": 68,
+    "pct": 50.36
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Mañana",
+    "recorrido": "RECDOM1039F3",
+    "camion": "743",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 150,
+    "hechas": 91,
+    "sin": 59,
+    "pct": 60.67
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Noche",
+    "recorrido": "RECDON2032F6",
+    "camion": "741",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 260,
+    "hechas": 195,
+    "sin": 65,
+    "pct": 75.0
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Noche",
+    "recorrido": "RECDON2033F3",
+    "camion": "701",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 176,
+    "hechas": 139,
+    "sin": 37,
+    "pct": 78.98
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Noche",
+    "recorrido": "RECDON2034F3",
+    "camion": "743, 721",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 183,
+    "hechas": 155,
+    "sin": 28,
+    "pct": 84.7
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Noche",
+    "recorrido": "RECDON2037F6",
+    "camion": "726",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 152,
+    "hechas": 146,
+    "sin": 6,
+    "pct": 96.05
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Noche",
+    "recorrido": "RECDON2039F6",
+    "camion": "744, AH308FO",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 96,
+    "hechas": 96,
+    "sin": 0,
+    "pct": 100.0
+  },
+  {
+    "date": "2026-11-12",
+    "turno": "Noche",
+    "recorrido": "RECDON2040F6",
+    "camion": "744",
+    "supervisor": "Villalva, Veronica Itati",
+    "total": 120,
+    "hechas": 106,
+    "sin": 14,
+    "pct": 88.33
   }
 ]
